@@ -1,0 +1,278 @@
+🎯 Objective:
+Create a full-featured, dark-themed, mobile-optimized, fast-loading website with TailwindCSS frontend and Flask backend, including:
+
+User subscription for Telegram Signal Channels (Solo & Bundles)
+
+Admin panel to manage users, plans, channels, folder links
+
+Telegram bot for real-time notifications
+
+PayPal & NOWPayments crypto integration
+
+Fully secure admin authentication system
+
+🔒 Backend Technology & Constraints
+✅ USE ONLY:
+
+Flask (Python backend)
+
+SQLite or PostgreSQL
+
+TailwindCSS (via CDN or CLI)
+
+JS or Alpine.js (for interactivity)
+
+python-telegram-bot or Telethon
+
+PayPal REST API (live + sandbox)
+
+NOWPayments API (crypto + webhook)
+
+🚫 DO NOT USE:
+
+React, Vue, Angular
+
+Firebase, MongoDB, Docker
+
+Unsupported dependencies on Replit/Ubuntu
+
+Extensions or services requiring root-level access
+
+🖥️ Pages (Tailwind-Based, Fully Responsive)
+1. 🔘 Public Website Pages
+/
+Home landing with hero banner
+
+Description of signal service
+
+CTA: View Bundles / View Solo Plans
+
+/bundles
+Show available Bundles with:
+
+Plan name
+
+Description
+
+List of included Telegram channels
+
+📁 Folder link (optional field in DB)
+
+Duration (1M, 3M, etc.)
+
+Price
+
+"Subscribe" CTA button
+
+/channels
+List of solo channels
+
+Each card includes name, price, duration, and Subscribe button
+
+/support
+FAQ section (accordion-style)
+
+Telegram link / email for chat
+
+/login
+Form for both signup and login
+
+Input 1: Telegram Username
+
+Input 2: 4-digit PIN
+
+“Switch to Signup” / “Switch to Login” toggle
+
+Uses simple cookie/session-based auth
+
+💳 Checkout Page
+Shown after user clicks "Subscribe"
+
+Fields:
+
+Telegram Username (required)
+
+Promo Code (optional, validated on backend)
+
+Read-only plan summary
+
+Payment options:
+
+✅ PayPal (Live/Sandbox toggle)
+
+✅ NOWPayments (Crypto)
+
+After successful payment (via webhook):
+
+User is added to DB
+
+Subscription marked active
+
+Telegram bot sends success message
+
+Redirect to dashboard
+
+👤 User Dashboard (/dashboard)
+Secured by session.
+
+Welcome message & membership overview
+
+Subscription status (Active/Expired)
+
+Folder link (if available)
+
+Channel links (clickable)
+
+Subscription expiry date
+
+Button to Renew or Upgrade
+
+Access to Support
+
+🤖 Telegram Bot Features (bot.py)
+Use python-telegram-bot or Telethon.
+
+Bot should:
+
+Send Telegram DM after:
+
+Successful subscription
+
+Renewal
+
+New channel added
+
+Promo code or special alert
+
+Optional: Remove user from private channels after expiry
+
+🔐 Admin Panel (/admin)
+Must be fully secured with username + password authentication.
+
+Admin Login Page:
+/admin/login
+
+Admin credentials stored securely (hashed in DB)
+
+Admin Panel Dashboard (/admin/dashboard)
+Includes:
+
+1. Overview
+Total subscriptions
+
+Revenue
+
+Active users
+
+Expired users
+
+Most subscribed bundles
+
+2. User Management
+Search/filter users by Telegram username
+
+View user info (username, plan, expiry)
+
+Manually activate / extend / expire user
+
+Ban/unban user
+
+Delete user
+
+3. Plan Management
+Add/edit/delete plans (Bundle or Solo)
+
+Fields:
+
+Plan type (Solo/Bundle)
+
+Name
+
+Price
+
+Duration (days/months)
+
+Channels (multiselect)
+
+📁 Folder link (for bundles only)
+
+Promo code (optional)
+
+4. Channel Management
+Add/edit/delete Telegram channels
+
+Group under bundles
+
+Solo vs. Bundle toggle
+
+Visibility toggle (active/inactive)
+
+5. Promo Code Management
+Add/edit/delete codes
+
+Set discount %
+
+Expiry date & usage limit
+
+6. CMS Content Editor
+Edit homepage content (Markdown or HTML)
+
+Edit FAQ items
+
+Edit Support Contact Info
+
+Toggle visibility of CTA buttons or homepage blocks
+
+7. Payment Management
+View transaction logs (PayPal & Crypto)
+
+Configure PayPal Client ID & Secret (Live/Sandbox)
+
+Add NOWPayments API key
+
+Test webhook connection
+
+8. Bot Notifications
+Set Telegram Bot Token
+
+Enable/disable:
+
+Auto alerts for new subscriptions
+
+Promo message broadcast
+
+Channel update notifications
+
+9. Security Settings
+Change admin password
+
+Logout all sessions
+
+
+
+
+✅ Features to Confirm at Final Delivery
+Feature	Status
+Dark, responsive UI (Tailwind)	✅
+User Signup/Login with PIN	✅
+Bundle and Solo Plan Support	✅
+Folder link input for bundle plans	✅
+Secure admin panel with auth	✅
+Telegram bot notification system	✅
+PayPal + NOWPayments support	✅
+Webhook-based user activation	✅
+Promo Code support	✅
+No unsupported tools used	✅
+Mobile-first design	✅
+
+⚠️ Final Notes:
+
+Do not include sample data unless realistic and relevant
+
+All logic must work offline in Replit or Ubuntu-based cloud host
+
+Store Telegram usernames securely
+
+Prevent subscription duplication
+
+Avoid client-side logic for payment validation — must be server-side only
