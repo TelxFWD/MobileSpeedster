@@ -369,3 +369,218 @@ def update_settings():
     db.session.commit()
     flash('Settings updated successfully!', 'success')
     return redirect(url_for('admin_settings'))
+
+@app.route('/admin/promo/<int:promo_id>/toggle', methods=['POST'])
+@admin_required
+def toggle_promo_status(promo_id):
+    """Toggle promo code active status"""
+    promo = PromoCode.query.get_or_404(promo_id)
+    promo.is_active = not promo.is_active
+    db.session.commit()
+    
+    status = 'activated' if promo.is_active else 'deactivated'
+    flash(f'Promo code {promo.code} has been {status}', 'success')
+    return redirect(url_for('admin_promos'))
+
+@app.route('/admin/promo/<int:promo_id>/delete', methods=['POST'])
+@admin_required
+def delete_promo(promo_id):
+    """Delete a promo code"""
+    promo = PromoCode.query.get_or_404(promo_id)
+    code = promo.code
+    db.session.delete(promo)
+    db.session.commit()
+    
+    flash(f'Promo code {code} has been deleted', 'success')
+    return redirect(url_for('admin_promos'))
+
+@app.route('/admin/channel/<int:channel_id>/delete', methods=['POST'])
+@admin_required
+def delete_channel(channel_id):
+    """Delete a channel"""
+    channel = Channel.query.get_or_404(channel_id)
+    
+    # Check if channel is used in any plans
+    if channel.plan_channels:
+        flash('Cannot delete channel - it is used in existing plans', 'error')
+        return redirect(url_for('admin_channels'))
+    
+    name = channel.name
+    db.session.delete(channel)
+    db.session.commit()
+    
+    flash(f'Channel {name} has been deleted', 'success')
+    return redirect(url_for('admin_channels'))
+
+@app.route('/admin/plan/<int:plan_id>/delete', methods=['POST'])
+@admin_required
+def delete_plan(plan_id):
+    """Delete a plan"""
+    plan = Plan.query.get_or_404(plan_id)
+    
+    # Check if plan has active subscriptions
+    active_subs = Subscription.query.filter_by(plan_id=plan_id).filter(
+        Subscription.end_date > datetime.utcnow()
+    ).count()
+    
+    if active_subs > 0:
+        flash('Cannot delete plan - it has active subscriptions', 'error')
+        return redirect(url_for('admin_plans'))
+    
+    name = plan.name
+    db.session.delete(plan)
+    db.session.commit()
+    
+    flash(f'Plan {name} has been deleted', 'success')
+    return redirect(url_for('admin_plans'))
+
+@app.route('/admin/user/<int:user_id>/delete', methods=['POST'])
+@admin_required
+def delete_user(user_id):
+    """Delete a user and all associated data"""
+    user = User.query.get_or_404(user_id)
+    
+    # Check if user has active subscriptions
+    active_subs = user.get_active_subscriptions()
+    if active_subs:
+        flash('Cannot delete user - they have active subscriptions', 'error')
+        return redirect(url_for('admin_users'))
+    
+    username = user.telegram_username
+    
+    # Delete associated transactions
+    Transaction.query.filter_by(user_id=user_id).delete()
+    
+    # Delete user
+    db.session.delete(user)
+    db.session.commit()
+    
+    flash(f'User {username} has been deleted', 'success')
+    return redirect(url_for('admin_users'))
+
+@app.route('/admin/analytics')
+@admin_required
+def admin_analytics():
+    """Admin analytics dashboard"""
+    from sqlalchemy import func
+    
+    # User statistics
+    total_users = User.query.count()
+    active_users = User.query.filter_by(is_active=True, is_banned=False).count()
+    banned_users = User.query.filter_by(is_banned=True).count()
+    
+    # Subscription statistics
+    total_subscriptions = Subscription.query.count()
+    active_subscriptions = Subscription.query.filter(
+        Subscription.end_date > datetime.utcnow()
+    ).count()
+    expired_subscriptions = Subscription.query.filter(
+        Subscription.end_date <= datetime.utcnow()
+    ).count()
+    
+    # Revenue statistics
+    total_revenue = db.session.query(func.sum(Transaction.amount)).filter_by(
+        status='completed'
+    ).scalar() or 0
+    
+    monthly_revenue = db.session.query(func.sum(Transaction.amount)).filter(
+        Transaction.status == 'completed',
+        Transaction.created_at >= datetime.utcnow().replace(day=1)
+    ).scalar() or 0
+    
+    # Popular plans
+    popular_plans = db.session.query(
+        Plan.name,
+        func.count(Subscription.id).label('subscription_count')
+    ).join(Subscription).group_by(Plan.id, Plan.name).order_by(
+        func.count(Subscription.id).desc()
+    ).limit(5).all()
+    
+    # Recent activity
+    recent_users = User.query.order_by(User.created_at.desc()).limit(5).all()
+    recent_transactions = Transaction.query.order_by(
+        Transaction.created_at.desc()
+    ).limit(10).all()
+    
+    return render_template('admin/analytics.html',
+                         total_users=total_users,
+                         active_users=active_users,
+                         banned_users=banned_users,
+                         total_subscriptions=total_subscriptions,
+                         active_subscriptions=active_subscriptions,
+                         expired_subscriptions=expired_subscriptions,
+                         total_revenue=total_revenue,
+                         monthly_revenue=monthly_revenue,
+                         popular_plans=popular_plans,
+                         recent_users=recent_users,
+                         recent_transactions=recent_transactions)
+
+@app.route('/admin/backup')
+@admin_required
+def admin_backup():
+    """Database backup functionality"""
+    import json
+    from datetime import datetime
+    
+    try:
+        # Create backup data
+        backup_data = {
+            'timestamp': datetime.utcnow().isoformat(),
+            'users': [],
+            'plans': [],
+            'channels': [],
+            'subscriptions': [],
+            'promo_codes': [],
+            'transactions': []
+        }
+        
+        # Export users (without sensitive data)
+        for user in User.query.all():
+            backup_data['users'].append({
+                'id': user.id,
+                'telegram_username': user.telegram_username,
+                'created_at': user.created_at.isoformat(),
+                'is_active': user.is_active,
+                'is_banned': user.is_banned
+            })
+        
+        # Export plans
+        for plan in Plan.query.all():
+            backup_data['plans'].append({
+                'id': plan.id,
+                'name': plan.name,
+                'description': plan.description,
+                'plan_type': plan.plan_type,
+                'price': float(plan.price),
+                'duration_days': plan.duration_days,
+                'is_active': plan.is_active,
+                'created_at': plan.created_at.isoformat()
+            })
+        
+        # Export channels
+        for channel in Channel.query.all():
+            backup_data['channels'].append({
+                'id': channel.id,
+                'name': channel.name,
+                'description': channel.description,
+                'telegram_link': channel.telegram_link,
+                'solo_price': float(channel.solo_price) if channel.solo_price else None,
+                'solo_duration_days': channel.solo_duration_days,
+                'is_active': channel.is_active,
+                'created_at': channel.created_at.isoformat()
+            })
+        
+        filename = f"telesignals_backup_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
+        
+        response = app.response_class(
+            response=json.dumps(backup_data, indent=2),
+            status=200,
+            mimetype='application/json'
+        )
+        response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+        
+        return response
+        
+    except Exception as e:
+        flash(f'Backup failed: {str(e)}', 'error')
+        return redirect(url_for('admin_dashboard'))

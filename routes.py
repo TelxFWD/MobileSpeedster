@@ -196,3 +196,127 @@ def not_found(error):
 def internal_error(error):
     db.session.rollback()
     return render_template('500.html'), 500
+
+@app.route('/api/promo/validate', methods=['POST'])
+def api_validate_promo():
+    """Enhanced API endpoint for real-time promo code validation"""
+    try:
+        data = request.get_json()
+        code = data.get('code', '').strip().upper()
+        plan_id = data.get('plan_id')
+        
+        if not code or not plan_id:
+            return jsonify({'success': False, 'message': 'Code and plan ID required'})
+        
+        promo = PromoCode.query.filter_by(code=code, is_active=True).first()
+        plan = Plan.query.get(plan_id)
+        
+        if not promo or not plan:
+            return jsonify({'success': False, 'message': 'Invalid promo code'})
+        
+        if not promo.is_valid():
+            return jsonify({'success': False, 'message': 'Promo code expired or usage limit reached'})
+        
+        original_price = float(plan.price)
+        discount_amount = (original_price * promo.discount_percent) / 100
+        discounted_price = original_price - discount_amount
+        
+        return jsonify({
+            'success': True,
+            'code': promo.code,
+            'discount_percent': promo.discount_percent,
+            'original_price': original_price,
+            'discount_amount': discount_amount,
+            'discounted_price': discounted_price,
+            'savings': discount_amount
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': 'Validation error'})
+
+@app.route('/user/subscription/<int:subscription_id>/cancel', methods=['POST'])
+@login_required
+def cancel_subscription(subscription_id):
+    """Cancel a user subscription"""
+    subscription = Subscription.query.filter_by(
+        id=subscription_id, 
+        user_id=session['user_id']
+    ).first_or_404()
+    
+    if not subscription.is_active():
+        flash('Subscription is already inactive', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Mark subscription as cancelled (set end_date to now)
+    subscription.end_date = datetime.utcnow()
+    db.session.commit()
+    
+    flash('Subscription cancelled successfully', 'success')
+    return redirect(url_for('dashboard'))
+
+@app.route('/api/user/profile', methods=['GET', 'POST'])
+@login_required
+def user_profile_api():
+    """User profile management API"""
+    user = User.query.get(session['user_id'])
+    
+    if request.method == 'GET':
+        return jsonify({
+            'success': True,
+            'user': {
+                'telegram_username': user.telegram_username,
+                'created_at': user.created_at.isoformat(),
+                'is_active': user.is_active,
+                'subscription_count': len(user.get_active_subscriptions())
+            }
+        })
+    
+    elif request.method == 'POST':
+        data = request.get_json()
+        new_pin = data.get('new_pin')
+        current_pin = data.get('current_pin')
+        
+        if not current_pin or not user.check_pin(current_pin):
+            return jsonify({'success': False, 'message': 'Invalid current PIN'})
+        
+        if not new_pin or not validate_pin(new_pin):
+            return jsonify({'success': False, 'message': 'New PIN must be 4 digits'})
+        
+        user.set_pin(new_pin)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'PIN updated successfully'})
+
+@app.route('/api/plans/search')
+def search_plans():
+    """Search plans by type and filters"""
+    plan_type = request.args.get('type', 'all')
+    search_term = request.args.get('q', '').strip()
+    
+    query = Plan.query.filter_by(is_active=True)
+    
+    if plan_type and plan_type != 'all':
+        query = query.filter_by(plan_type=plan_type)
+    
+    if search_term:
+        query = query.filter(
+            db.or_(
+                Plan.name.ilike(f'%{search_term}%'),
+                Plan.description.ilike(f'%{search_term}%')
+            )
+        )
+    
+    plans = query.order_by(Plan.created_at.desc()).all()
+    
+    return jsonify({
+        'success': True,
+        'plans': [{
+            'id': plan.id,
+            'name': plan.name,
+            'description': plan.description,
+            'plan_type': plan.plan_type,
+            'price': plan.price,
+            'duration_days': plan.duration_days,
+            'channels': [{'name': ch.name} for ch in plan.get_channels()]
+        } for plan in plans]
+    })
