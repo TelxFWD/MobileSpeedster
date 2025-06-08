@@ -6,6 +6,11 @@ from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash
 import json
 
+# Make datetime available in templates
+@app.context_processor
+def inject_datetime():
+    return {'moment': datetime}
+
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
     if request.method == 'POST':
@@ -428,6 +433,11 @@ def delete_plan(plan_id):
         return redirect(url_for('admin_plans'))
     
     name = plan.name
+    
+    # Delete plan channels first
+    PlanChannel.query.filter_by(plan_id=plan_id).delete()
+    
+    # Delete the plan
     db.session.delete(plan)
     db.session.commit()
     

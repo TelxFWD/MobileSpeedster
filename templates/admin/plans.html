@@ -102,7 +102,7 @@
                 <h1 class="text-3xl font-bold">📦 Plan Management</h1>
                 <p class="text-gray-400 mt-2">Create and manage subscription plans</p>
             </div>
-            <button x-data @click="$refs.createPlanModal.showModal()" 
+            <button onclick="document.getElementById('createPlanModal').showModal()" 
                     class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors">
                 <i data-feather="plus" class="w-4 h-4 inline mr-2"></i>
                 Create Plan
@@ -176,9 +176,11 @@
                                 {% if plan.is_active %}Disable{% else %}Enable{% endif %}
                             </button>
                         </form>
-                        <button class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-semibold transition-colors">
-                            Edit
-                        </button>
+                        <form method="POST" action="{{ url_for('delete_plan', plan_id=plan.id) }}" onsubmit="return confirm('Are you sure you want to delete this plan?')">
+                            <button type="submit" class="bg-red-800 hover:bg-red-900 text-white px-3 py-2 rounded text-sm font-semibold transition-colors">
+                                Delete
+                            </button>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -192,7 +194,7 @@
             </div>
             <h3 class="text-2xl font-semibold mb-4">No Plans Created</h3>
             <p class="text-gray-400 mb-8">Create your first subscription plan to get started.</p>
-            <button x-data @click="$refs.createPlanModal.showModal()" 
+            <button onclick="document.getElementById('createPlanModal').showModal()" 
                     class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold">
                 Create First Plan
             </button>
@@ -201,11 +203,11 @@
     </main>
 
     <!-- Create Plan Modal -->
-    <dialog x-ref="createPlanModal" class="backdrop:bg-black backdrop:bg-opacity-50 bg-transparent">
+    <dialog id="createPlanModal" class="backdrop:bg-black backdrop:bg-opacity-50 bg-transparent">
         <div class="bg-gray-800 rounded-lg border border-gray-700 w-full max-w-2xl mx-auto p-6">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold">📦 Create New Plan</h2>
-                <button @click="$refs.createPlanModal.close()" class="text-gray-400 hover:text-white">
+                <button onclick="document.getElementById('createPlanModal').close()" class="text-gray-400 hover:text-white">
                     <i data-feather="x" class="w-6 h-6"></i>
                 </button>
             </div>
@@ -303,7 +305,7 @@
                         Create Plan
                     </button>
                     <button type="button" 
-                            @click="$refs.createPlanModal.close()"
+                            onclick="document.getElementById('createPlanModal').close()"
                             class="flex-1 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors">
                         Cancel
                     </button>

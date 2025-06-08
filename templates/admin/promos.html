@@ -102,7 +102,7 @@
                 <h1 class="text-3xl font-bold">🏷️ Promo Code Management</h1>
                 <p class="text-gray-400 mt-2">Create and manage discount codes for subscriptions</p>
             </div>
-            <button x-data @click="$refs.createPromoModal.showModal()" 
+            <button onclick="document.getElementById('createPromoModal').showModal()" 
                     class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors">
                 <i data-feather="plus" class="w-4 h-4 inline mr-2"></i>
                 Create Promo Code
@@ -154,7 +154,7 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm">
                                 {% if promo.expiry_date %}
-                                    {% if promo.expiry_date > moment() %}
+                                    {% if promo.expiry_date > moment.utcnow() %}
                                         <div class="text-green-400">{{ promo.expiry_date.strftime('%b %d, %Y') }}</div>
                                     {% else %}
                                         <div class="text-red-400">{{ promo.expiry_date.strftime('%b %d, %Y') }}</div>
@@ -191,7 +191,7 @@
             </div>
             <h3 class="text-2xl font-semibold mb-4">No Promo Codes Created</h3>
             <p class="text-gray-400 mb-8">Create promotional discount codes to boost sales and reward customers.</p>
-            <button x-data @click="$refs.createPromoModal.showModal()" 
+            <button onclick="document.getElementById('createPromoModal').showModal()" 
                     class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold">
                 Create First Promo Code
             </button>
@@ -200,11 +200,11 @@
     </main>
 
     <!-- Create Promo Code Modal -->
-    <dialog x-ref="createPromoModal" class="backdrop:bg-black backdrop:bg-opacity-50 bg-transparent">
+    <dialog id="createPromoModal" class="backdrop:bg-black backdrop:bg-opacity-50 bg-transparent">
         <div class="bg-gray-800 rounded-lg border border-gray-700 w-full max-w-lg mx-auto p-6">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold">🏷️ Create Promo Code</h2>
-                <button @click="$refs.createPromoModal.close()" class="text-gray-400 hover:text-white">
+                <button onclick="document.getElementById('createPromoModal').close()" class="text-gray-400 hover:text-white">
                     <i data-feather="x" class="w-6 h-6"></i>
                 </button>
             </div>
@@ -254,7 +254,7 @@
                     <label class="block text-sm font-medium text-gray-300 mb-2">Expiry Date (Optional)</label>
                     <input type="date" 
                            name="expiry_date"
-                           min="{{ moment().strftime('%Y-%m-%d') }}"
+                           min="{{ moment.utcnow().strftime('%Y-%m-%d') }}"
                            class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-green-500">
                     <p class="text-xs text-gray-400 mt-1">Leave empty for no expiry</p>
                 </div>
@@ -293,7 +293,7 @@
                         Create Promo Code
                     </button>
                     <button type="button" 
-                            @click="$refs.createPromoModal.close()"
+                            onclick="document.getElementById('createPromoModal').close()"
                             class="flex-1 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors">
                         Cancel
                     </button>

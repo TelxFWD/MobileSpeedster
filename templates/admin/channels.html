@@ -102,7 +102,7 @@
                 <h1 class="text-3xl font-bold">📺 Channel Management</h1>
                 <p class="text-gray-400 mt-2">Create and manage Telegram signal channels</p>
             </div>
-            <button x-data @click="$refs.createChannelModal.showModal()" 
+            <button onclick="document.getElementById('createChannelModal').showModal()" 
                     class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors">
                 <i data-feather="plus" class="w-4 h-4 inline mr-2"></i>
                 Add Channel
@@ -186,7 +186,7 @@
             </div>
             <h3 class="text-2xl font-semibold mb-4">No Channels Created</h3>
             <p class="text-gray-400 mb-8">Create your first Telegram signal channel to get started.</p>
-            <button x-data @click="$refs.createChannelModal.showModal()" 
+            <button onclick="document.getElementById('createChannelModal').showModal()" 
                     class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold">
                 Create First Channel
             </button>
@@ -195,11 +195,11 @@
     </main>
 
     <!-- Create Channel Modal -->
-    <dialog x-ref="createChannelModal" class="backdrop:bg-black backdrop:bg-opacity-50 bg-transparent">
+    <dialog id="createChannelModal" class="backdrop:bg-black backdrop:bg-opacity-50 bg-transparent">
         <div class="bg-gray-800 rounded-lg border border-gray-700 w-full max-w-2xl mx-auto p-6">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold">📺 Create New Channel</h2>
-                <button @click="$refs.createChannelModal.close()" class="text-gray-400 hover:text-white">
+                <button onclick="document.getElementById('createChannelModal').close()" class="text-gray-400 hover:text-white">
                     <i data-feather="x" class="w-6 h-6"></i>
                 </button>
             </div>
@@ -264,7 +264,7 @@
                         Create Channel
                     </button>
                     <button type="button" 
-                            @click="$refs.createChannelModal.close()"
+                            onclick="document.getElementById('createChannelModal').close()"
                             class="flex-1 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors">
                         Cancel
                     </button>

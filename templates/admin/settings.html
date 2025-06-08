@@ -356,7 +356,7 @@
                                 </div>
                                 <div class="flex justify-between">
                                     <span class="text-gray-400">Last Login:</span>
-                                    <span>{{ moment().format('MMM DD, YYYY HH:mm') }} UTC</span>
+                                    <span>{{ moment.utcnow().strftime('%b %d, %Y %H:%M') }} UTC</span>
                                 </div>
                                 <div class="flex justify-between">
                                     <span class="text-gray-400">Session Status:</span>
