@@ -310,8 +310,22 @@ document.getElementById('apply-promo').addEventListener('click', function() {
         messageEl.classList.remove('hidden');
     })
     .catch(error => {
-        console.error('Promo validation error:', error);
+        const messageEl = document.getElementById('promo-message');
+        messageEl.className = 'mt-1 text-xs text-red-400';
+        messageEl.textContent = '❌ Error validating promo code';
+        messageEl.classList.remove('hidden');
     });
+});
+
+// Remove promo code functionality
+document.getElementById('remove-promo').addEventListener('click', function() {
+    document.getElementById('promo_code').value = '';
+    document.getElementById('promo-success').classList.add('hidden');
+    
+    // Reset pricing
+    currentDiscount = 0;
+    document.getElementById('discount-row').classList.add('hidden');
+    document.getElementById('final-total').textContent = `$${originalPrice.toFixed(2)}`;
 });
 
 // Payment method selection
