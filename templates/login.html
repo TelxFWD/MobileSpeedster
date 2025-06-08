@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}Login / Signup - TeleSignals{% endblock %}
+
+{% block content %}
+<section class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-md w-full space-y-8">
+        <div class="text-center">
+            <h2 class="text-3xl font-bold">Welcome to TeleSignals</h2>
+            <p class="mt-2 text-gray-400">Sign in to your account or create a new one</p>
+        </div>
+        
+        <div x-data="{ mode: 'login' }" class="bg-gray-800 p-8 rounded-lg border border-gray-700">
+            <!-- Mode Toggle -->
+            <div class="flex bg-gray-900 rounded-lg p-1 mb-6">
+                <button @click="mode = 'login'" 
+                        :class="{ 'bg-blue-600 text-white': mode === 'login', 'text-gray-400 hover:text-white': mode !== 'login' }"
+                        class="flex-1 py-2 px-4 rounded-md font-semibold transition-colors">
+                    Login
+                </button>
+                <button @click="mode = 'signup'" 
+                        :class="{ 'bg-blue-600 text-white': mode === 'signup', 'text-gray-400 hover:text-white': mode !== 'signup' }"
+                        class="flex-1 py-2 px-4 rounded-md font-semibold transition-colors">
+                    Sign Up
+                </button>
+            </div>
+            
+            <form method="POST" class="space-y-6">
+                <input type="hidden" name="mode" x-model="mode">
+                
+                <!-- Telegram Username -->
+                <div>
+                    <label for="telegram_username" class="block text-sm font-medium text-gray-300 mb-2">
+                        Telegram Username
+                    </label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <span class="text-gray-400">@</span>
+                        </div>
+                        <input type="text" 
+                               id="telegram_username" 
+                               name="telegram_username" 
+                               required 
+                               class="pl-8 w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                               placeholder="your_username"
+                               value="{{ request.form.get('telegram_username', '') }}">
+                    </div>
+                    <p class="mt-1 text-xs text-gray-400">Enter your Telegram username without the @ symbol</p>
+                </div>
+                
+                <!-- PIN -->
+                <div>
+                    <label for="pin" class="block text-sm font-medium text-gray-300 mb-2">
+                        <span x-show="mode === 'login'">4-Digit PIN</span>
+                        <span x-show="mode === 'signup'">Create 4-Digit PIN</span>
+                    </label>
+                    <input type="password" 
+                           id="pin" 
+                           name="pin" 
+                           required 
+                           maxlength="4"
+                           pattern="[0-9]{4}"
+                           class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-lg tracking-widest"
+                           placeholder="••••">
+                    <p class="mt-1 text-xs text-gray-400">
+                        <span x-show="mode === 'login'">Enter your 4-digit PIN</span>
+                        <span x-show="mode === 'signup'">Choose a secure 4-digit PIN (numbers only)</span>
+                    </p>
+                </div>
+                
+                <!-- Submit Button -->
+                <button type="submit" 
+                        class="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-4 rounded-lg transition-all transform hover:scale-105">
+                    <span x-show="mode === 'login'">🔓 Sign In</span>
+                    <span x-show="mode === 'signup'">🚀 Create Account</span>
+                </button>
+            </form>
+            
+            <!-- Info Box -->
+            <div class="mt-6 p-4 bg-blue-900 border border-blue-700 rounded-lg">
+                <div class="flex items-start">
+                    <i data-feather="info" class="w-5 h-5 text-blue-400 mt-0.5 mr-3 flex-shrink-0"></i>
+                    <div class="text-sm text-blue-100">
+                        <p x-show="mode === 'login'">
+                            <strong>Returning user?</strong> Use your Telegram username and the PIN you created when signing up.
+                        </p>
+                        <p x-show="mode === 'signup'">
+                            <strong>New user?</strong> Create an account with your Telegram username and a secure 4-digit PIN. You'll use these credentials to access your dashboard and manage subscriptions.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Security Note -->
+            <div class="mt-4 text-center">
+                <p class="text-xs text-gray-400">
+                    🔒 Your PIN is securely encrypted and never stored in plain text
+                </p>
+            </div>
+        </div>
+        
+        <!-- Help Section -->
+        <div class="text-center">
+            <p class="text-gray-400">
+                Need help? 
+                <a href="{{ url_for('support') }}" class="text-blue-400 hover:text-blue-300">Contact Support</a>
+            </p>
+        </div>
+    </div>
+</section>
+
+<script>
+// PIN input formatting
+document.getElementById('pin').addEventListener('input', function(e) {
+    // Only allow numbers
+    this.value = this.value.replace(/[^0-9]/g, '');
+    
+    // Limit to 4 digits
+    if (this.value.length > 4) {
+        this.value = this.value.slice(0, 4);
+    }
+});
+
+// Auto-focus PIN when username is filled
+document.getElementById('telegram_username').addEventListener('input', function(e) {
+    if (this.value.length >= 5) {
+        document.getElementById('pin').focus();
+    }
+});
+</script>
+{% endblock %}

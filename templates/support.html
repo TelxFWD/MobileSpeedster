@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}Support - TeleSignals{% endblock %}
+
+{% block content %}
+<!-- Header Section -->
+<section class="bg-gradient-to-r from-green-900 to-blue-900 py-16">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <h1 class="text-4xl md:text-5xl font-bold mb-4">🛟 Support Center</h1>
+        <p class="text-xl text-gray-300">
+            Get help and find answers to common questions
+        </p>
+    </div>
+</section>
+
+<!-- Contact Section -->
+<section class="py-16">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
+            <!-- Contact Info -->
+            <div>
+                <h2 class="text-3xl font-bold mb-8">Get in Touch</h2>
+                
+                <div class="space-y-6">
+                    <div class="flex items-start">
+                        <div class="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
+                            <i data-feather="message-circle" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-semibold mb-2">Telegram Support</h3>
+                            <p class="text-gray-400 mb-2">Get instant help through our Telegram support chat</p>
+                            {% if contact_content and contact_content.content %}
+                                <div class="text-blue-400">{{ contact_content.content|safe }}</div>
+                            {% else %}
+                                <a href="https://t.me/telesignals_support" class="text-blue-400 hover:text-blue-300">
+                                    @telesignals_support
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-start">
+                        <div class="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
+                            <i data-feather="mail" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-semibold mb-2">Email Support</h3>
+                            <p class="text-gray-400 mb-2">Send us detailed questions or concerns</p>
+                            <a href="mailto:support@telesignals.com" class="text-blue-400 hover:text-blue-300">
+                                support@telesignals.com
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-start">
+                        <div class="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
+                            <i data-feather="clock" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-semibold mb-2">Response Time</h3>
+                            <p class="text-gray-400">Telegram: Usually within 1 hour</p>
+                            <p class="text-gray-400">Email: Within 24 hours</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Quick Actions -->
+            <div>
+                <h2 class="text-3xl font-bold mb-8">Quick Actions</h2>
+                
+                <div class="space-y-4">
+                    <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 hover:border-blue-500 transition-colors">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-lg font-semibold mb-1">Check Subscription Status</h3>
+                                <p class="text-gray-400 text-sm">View your active subscriptions and expiry dates</p>
+                            </div>
+                            <a href="{{ url_for('dashboard') if session.user_id else url_for('login') }}" 
+                               class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">
+                                {% if session.user_id %}Dashboard{% else %}Login{% endif %}
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 hover:border-blue-500 transition-colors">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-lg font-semibold mb-1">Browse Plans</h3>
+                                <p class="text-gray-400 text-sm">View available bundles and solo channels</p>
+                            </div>
+                            <a href="{{ url_for('bundles') }}" 
+                               class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">
+                                View Plans
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 hover:border-blue-500 transition-colors">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-lg font-semibold mb-1">Payment Issues</h3>
+                                <p class="text-gray-400 text-sm">Having trouble with payments or transactions?</p>
+                            </div>
+                            <a href="https://t.me/telesignals_support" 
+                               class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">
+                                Get Help
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- FAQ Section -->
+<section class="bg-gray-800 py-16">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h2 class="text-3xl font-bold text-center mb-12">Frequently Asked Questions</h2>
+        
+        <div x-data="{ openFaq: null }" class="space-y-4">
+            {% for faq in default_faq %}
+            <div class="bg-gray-900 rounded-lg">
+                <button @click="openFaq = openFaq === {{ loop.index }} ? null : {{ loop.index }}" 
+                        class="w-full text-left p-6 focus:outline-none focus:bg-gray-800 rounded-lg">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-semibold">{{ faq.question }}</h3>
+                        <i data-feather="chevron-down" 
+                           :class="{ 'transform rotate-180': openFaq === {{ loop.index }} }" 
+                           class="w-5 h-5 transition-transform"></i>
+                    </div>
+                </button>
+                <div x-show="openFaq === {{ loop.index }}" x-collapse class="px-6 pb-6">
+                    <p class="text-gray-400">{{ faq.answer }}</p>
+                </div>
+            </div>
+            {% endfor %}
+            
+            <!-- Additional FAQ items -->
+            <div class="bg-gray-900 rounded-lg">
+                <button @click="openFaq = openFaq === 'refund' ? null : 'refund'" 
+                        class="w-full text-left p-6 focus:outline-none focus:bg-gray-800 rounded-lg">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-semibold">What is your refund policy?</h3>
+                        <i data-feather="chevron-down" 
+                           :class="{ 'transform rotate-180': openFaq === 'refund' }" 
+                           class="w-5 h-5 transition-transform"></i>
+                    </div>
+                </button>
+                <div x-show="openFaq === 'refund'" x-collapse class="px-6 pb-6">
+                    <p class="text-gray-400">Due to the nature of digital signal services, all subscriptions are non-refundable. However, we're committed to ensuring your satisfaction. If you're experiencing issues with your subscription, please contact our support team immediately.</p>
+                </div>
+            </div>
+            
+            <div class="bg-gray-900 rounded-lg">
+                <button @click="openFaq = openFaq === 'channels' ? null : 'channels'" 
+                        class="w-full text-left p-6 focus:outline-none focus:bg-gray-800 rounded-lg">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-semibold">How do I join the Telegram channels?</h3>
+                        <i data-feather="chevron-down" 
+                           :class="{ 'transform rotate-180': openFaq === 'channels' }" 
+                           class="w-5 h-5 transition-transform"></i>
+                    </div>
+                </button>
+                <div x-show="openFaq === 'channels'" x-collapse class="px-6 pb-6">
+                    <p class="text-gray-400">After successful payment, you'll receive a Telegram notification with channel links. You can also find all your channel links in your dashboard. Simply click the links to join the channels you've subscribed to.</p>
+                </div>
+            </div>
+            
+            <div class="bg-gray-900 rounded-lg">
+                <button @click="openFaq = openFaq === 'signals' ? null : 'signals'" 
+                        class="w-full text-left p-6 focus:outline-none focus:bg-gray-800 rounded-lg">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-semibold">What type of signals do you provide?</h3>
+                        <i data-feather="chevron-down" 
+                           :class="{ 'transform rotate-180': openFaq === 'signals' }" 
+                           class="w-5 h-5 transition-transform"></i>
+                    </div>
+                </button>
+                <div x-show="openFaq === 'signals'" x-collapse class="px-6 pb-6">
+                    <p class="text-gray-400">We provide professional trading signals for cryptocurrency and forex markets. Each signal includes entry points, stop-loss levels, take-profit targets, and risk management guidelines. Our signals are generated by experienced traders with proven track records.</p>
+                </div>
+            </div>
+            
+            <div class="bg-gray-900 rounded-lg">
+                <button @click="openFaq = openFaq === 'expire' ? null : 'expire'" 
+                        class="w-full text-left p-6 focus:outline-none focus:bg-gray-800 rounded-lg">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-semibold">What happens when my subscription expires?</h3>
+                        <i data-feather="chevron-down" 
+                           :class="{ 'transform rotate-180': openFaq === 'expire' }" 
+                           class="w-5 h-5 transition-transform"></i>
+                    </div>
+                </button>
+                <div x-show="openFaq === 'expire'" x-collapse class="px-6 pb-6">
+                    <p class="text-gray-400">When your subscription expires, you'll lose access to the premium channels. We'll send you notifications before expiry to remind you to renew. You can renew your subscription at any time from your dashboard.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Contact CTA -->
+<section class="py-16">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <div class="bg-gradient-to-r from-blue-900 to-green-900 p-8 rounded-lg">
+            <h2 class="text-2xl font-bold mb-4">Still Need Help?</h2>
+            <p class="text-lg text-gray-300 mb-6">
+                Our support team is ready to assist you with any questions or issues.
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="https://t.me/telesignals_support" 
+                   class="bg-white text-blue-900 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors">
+                    💬 Chat on Telegram
+                </a>
+                <a href="mailto:support@telesignals.com" 
+                   class="border-2 border-white text-white px-6 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-900 transition-colors">
+                    📧 Send Email
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

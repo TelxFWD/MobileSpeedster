@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}Solo Channels - TeleSignals{% endblock %}
+
+{% block content %}
+<!-- Header Section -->
+<section class="bg-gradient-to-r from-blue-900 to-purple-900 py-16">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <h1 class="text-4xl md:text-5xl font-bold mb-4">📺 Solo Channels</h1>
+        <p class="text-xl text-gray-300">
+            Subscribe to individual premium signal channels
+        </p>
+    </div>
+</section>
+
+<!-- Tabs -->
+<section class="py-8 bg-gray-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div x-data="{ activeTab: 'plans' }" class="flex justify-center">
+            <div class="flex bg-gray-900 rounded-lg p-1">
+                <button @click="activeTab = 'plans'" 
+                        :class="{ 'bg-blue-600 text-white': activeTab === 'plans', 'text-gray-400 hover:text-white': activeTab !== 'plans' }"
+                        class="px-6 py-2 rounded-md font-semibold transition-colors">
+                    Solo Plans
+                </button>
+                <button @click="activeTab = 'channels'" 
+                        :class="{ 'bg-blue-600 text-white': activeTab === 'channels', 'text-gray-400 hover:text-white': activeTab !== 'channels' }"
+                        class="px-6 py-2 rounded-md font-semibold transition-colors">
+                    Individual Channels
+                </button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Solo Plans Tab -->
+<section x-data="{ activeTab: 'plans' }" x-show="activeTab === 'plans'" class="py-16">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {% if plans %}
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {% for plan in plans %}
+                <div class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-blue-500 transition-colors">
+                    <div class="p-6">
+                        <div class="flex justify-between items-start mb-4">
+                            <h3 class="text-xl font-semibold">{{ plan.name }}</h3>
+                            <div class="text-right">
+                                <div class="text-2xl font-bold text-blue-400">${{ "%.2f"|format(plan.price) }}</div>
+                                <div class="text-sm text-gray-400">{{ plan.duration_days }} days</div>
+                            </div>
+                        </div>
+                        
+                        {% if plan.description %}
+                        <p class="text-gray-400 mb-4">{{ plan.description }}</p>
+                        {% endif %}
+                        
+                        <!-- Included Channels -->
+                        <div class="mb-6">
+                            <h4 class="text-sm font-semibold text-gray-300 mb-2">📺 Channel:</h4>
+                            {% for channel in plan.get_channels() %}
+                            <div class="bg-gray-900 p-3 rounded-lg mb-2">
+                                <div class="font-semibold">{{ channel.name }}</div>
+                                {% if channel.description %}
+                                <div class="text-sm text-gray-400 mt-1">{{ channel.description }}</div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <a href="{{ url_for('checkout', plan_id=plan.id) }}" 
+                           class="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-4 rounded-lg transition-all transform hover:scale-105 text-center block">
+                            🚀 Subscribe Now
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="text-center py-16">
+                <div class="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i data-feather="tv" class="w-8 h-8 text-gray-400"></i>
+                </div>
+                <h3 class="text-xl font-semibold mb-2">No Solo Plans Available</h3>
+                <p class="text-gray-400 mb-6">Solo channel plans are being prepared. Check our bundles!</p>
+                <a href="{{ url_for('bundles') }}" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold">
+                    View Bundles
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+<!-- Individual Channels Tab -->
+<section x-data="{ activeTab: 'plans' }" x-show="activeTab === 'channels'" class="py-16">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {% if channels %}
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {% for channel in channels %}
+                <div class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-blue-500 transition-colors">
+                    <div class="p-6">
+                        <div class="flex justify-between items-start mb-4">
+                            <h3 class="text-xl font-semibold">{{ channel.name }}</h3>
+                            <div class="text-right">
+                                {% if channel.solo_price %}
+                                <div class="text-2xl font-bold text-blue-400">${{ "%.2f"|format(channel.solo_price) }}</div>
+                                <div class="text-sm text-gray-400">{{ channel.solo_duration_days or 30 }} days</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        {% if channel.description %}
+                        <p class="text-gray-400 mb-4">{{ channel.description }}</p>
+                        {% endif %}
+                        
+                        <div class="mb-6">
+                            <div class="flex items-center text-sm text-gray-400">
+                                <i data-feather="link" class="w-4 h-4 mr-2"></i>
+                                Direct channel access
+                            </div>
+                        </div>
+                        
+                        {% if channel.solo_price %}
+                        <a href="{{ url_for('checkout', plan_id=channel.id) }}" 
+                           class="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-4 rounded-lg transition-all transform hover:scale-105 text-center block">
+                            🚀 Subscribe Now
+                        </a>
+                        {% else %}
+                        <div class="w-full bg-gray-700 text-gray-400 font-semibold py-3 px-4 rounded-lg text-center">
+                            Available in Bundles Only
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="text-center py-16">
+                <div class="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i data-feather="tv" class="w-8 h-8 text-gray-400"></i>
+                </div>
+                <h3 class="text-xl font-semibold mb-2">No Individual Channels Available</h3>
+                <p class="text-gray-400 mb-6">Individual channel subscriptions are being prepared. Check our bundles!</p>
+                <a href="{{ url_for('bundles') }}" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold">
+                    View Bundles
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+<!-- Benefits Section -->
+<section class="bg-gray-800 py-16">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-12">
+            <h2 class="text-3xl font-bold mb-4">Solo Channel Benefits</h2>
+            <p class="text-xl text-gray-400">Perfect for focused trading strategies</p>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div class="text-center">
+                <div class="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i data-feather="target" class="w-8 h-8"></i>
+                </div>
+                <h3 class="text-xl font-semibold mb-2">Focused Strategy</h3>
+                <p class="text-gray-400">Get signals from a specific trading strategy or market focus.</p>
+            </div>
+            
+            <div class="text-center">
+                <div class="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i data-feather="dollar-sign" class="w-8 h-8"></i>
+                </div>
+                <h3 class="text-xl font-semibold mb-2">Cost Effective</h3>
+                <p class="text-gray-400">Pay only for the specific channel you want to follow.</p>
+            </div>
+            
+            <div class="text-center">
+                <div class="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i data-feather="zap" class="w-8 h-8"></i>
+                </div>
+                <h3 class="text-xl font-semibold mb-2">Quick Start</h3>
+                <p class="text-gray-400">Simple subscription process - start receiving signals immediately.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Recommendation -->
+<section class="py-16">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <div class="bg-gradient-to-r from-blue-900 to-purple-900 p-8 rounded-lg">
+            <h2 class="text-2xl font-bold mb-4">💡 Not Sure Which to Choose?</h2>
+            <p class="text-lg text-gray-300 mb-6">
+                If you're interested in multiple channels, our bundles offer significant savings and variety.
+            </p>
+            <a href="{{ url_for('bundles') }}" 
+               class="bg-white text-purple-900 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors">
+                Compare Bundle Deals
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}

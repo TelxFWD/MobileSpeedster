@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - TeleSignals{% endblock %}
+
+{% block content %}
+<section class="py-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- Welcome Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold mb-2">👋 Welcome, @{{ user.telegram_username }}</h1>
+            <p class="text-gray-400">Manage your signal subscriptions and access your channels</p>
+        </div>
+        
+        <!-- Account Status -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-lg font-semibold">Account Status</h3>
+                    {% if user.is_active and not user.is_banned %}
+                        <span class="bg-green-900 text-green-100 px-2 py-1 rounded-full text-xs">Active</span>
+                    {% elif user.is_banned %}
+                        <span class="bg-red-900 text-red-100 px-2 py-1 rounded-full text-xs">Banned</span>
+                    {% else %}
+                        <span class="bg-yellow-900 text-yellow-100 px-2 py-1 rounded-full text-xs">Inactive</span>
+                    {% endif %}
+                </div>
+                <p class="text-gray-400 text-sm">Member since {{ user.created_at.strftime('%B %Y') }}</p>
+            </div>
+            
+            <div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-lg font-semibold">Active Subscriptions</h3>
+                    <span class="bg-blue-900 text-blue-100 px-2 py-1 rounded-full text-xs">
+                        {{ active_subscriptions|length }}
+                    </span>
+                </div>
+                <p class="text-gray-400 text-sm">
+                    {% if active_subscriptions %}
+                        {{ active_subscriptions|length }} subscription{{ 's' if active_subscriptions|length != 1 else '' }} active
+                    {% else %}
+                        No active subscriptions
+                    {% endif %}
+                </p>
+            </div>
+            
+            <div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-lg font-semibold">Total Channels</h3>
+                    {% set total_channels = active_subscriptions|sum(attribute='plan.get_channels')|length if active_subscriptions else 0 %}
+                    <span class="bg-purple-900 text-purple-100 px-2 py-1 rounded-full text-xs">
+                        {{ total_channels }}
+                    </span>
+                </div>
+                <p class="text-gray-400 text-sm">Channels you have access to</p>
+            </div>
+        </div>
+        
+        {% if active_subscriptions %}
+        <!-- Active Subscriptions -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-bold mb-6">📊 Your Active Subscriptions</h2>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {% for subscription in active_subscriptions %}
+                <div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 class="text-xl font-semibold">{{ subscription.plan.name }}</h3>
+                            <p class="text-gray-400 text-sm">{{ subscription.plan.plan_type.title() }} Plan</p>
+                        </div>
+                        <div class="text-right">
+                            {% set days_left = subscription.days_remaining() %}
+                            {% if days_left > 7 %}
+                                <span class="bg-green-900 text-green-100 px-2 py-1 rounded-full text-xs">
+                                    {{ days_left }} days left
+                                </span>
+                            {% elif days_left > 3 %}
+                                <span class="bg-yellow-900 text-yellow-100 px-2 py-1 rounded-full text-xs">
+                                    {{ days_left }} days left
+                                </span>
+                            {% else %}
+                                <span class="bg-red-900 text-red-100 px-2 py-1 rounded-full text-xs">
+                                    {{ days_left }} days left
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    {% if subscription.plan.description %}
+                    <p class="text-gray-400 text-sm mb-4">{{ subscription.plan.description }}</p>
+                    {% endif %}
+                    
+                    <!-- Subscription Details -->
+                    <div class="space-y-3 mb-4">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">Started:</span>
+                            <span>{{ subscription.start_date.strftime('%b %d, %Y') }}</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">Expires:</span>
+                            <span>{{ subscription.end_date.strftime('%b %d, %Y') }}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Folder Link -->
+                    {% if subscription.plan.folder_link %}
+                    <div class="mb-4">
+                        <a href="{{ subscription.plan.folder_link }}" 
+                           target="_blank"
+                           class="inline-flex items-center bg-blue-900 text-blue-100 px-3 py-2 rounded-lg text-sm hover:bg-blue-800 transition-colors">
+                            <i data-feather="folder" class="w-4 h-4 mr-2"></i>
+                            Access Folder
+                        </a>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Channel Links -->
+                    <div class="mb-4">
+                        <h4 class="text-sm font-semibold text-gray-300 mb-2">📺 Your Channels:</h4>
+                        <div class="grid grid-cols-1 gap-2">
+                            {% for channel in subscription.plan.get_channels() %}
+                            <a href="{{ channel.telegram_link }}" 
+                               target="_blank"
+                               class="flex items-center justify-between bg-gray-900 p-3 rounded-lg hover:bg-gray-700 transition-colors group">
+                                <div class="flex items-center">
+                                    <i data-feather="external-link" class="w-4 h-4 mr-2 text-blue-400"></i>
+                                    <span class="font-medium">{{ channel.name }}</span>
+                                </div>
+                                <i data-feather="arrow-right" class="w-4 h-4 text-gray-400 group-hover:text-white transition-colors"></i>
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <!-- Actions -->
+                    <div class="flex gap-2">
+                        <a href="{{ url_for('renew_subscription', subscription_id=subscription.id) }}" 
+                           class="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold text-center transition-colors">
+                            🔄 Renew
+                        </a>
+                        <a href="{{ url_for('bundles') }}" 
+                           class="flex-1 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold text-center transition-colors">
+                            ⬆️ Upgrade
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Quick Actions -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-bold mb-6">⚡ Quick Actions</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <a href="{{ url_for('bundles') }}" 
+                   class="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 p-6 rounded-lg transition-all transform hover:scale-105">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-lg font-semibold">Browse Bundles</h3>
+                        <i data-feather="package" class="w-6 h-6"></i>
+                    </div>
+                    <p class="text-sm opacity-90">Explore our bundle deals and save money on multiple channels</p>
+                </a>
+                
+                <a href="{{ url_for('channels') }}" 
+                   class="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 p-6 rounded-lg transition-all transform hover:scale-105">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-lg font-semibold">Solo Channels</h3>
+                        <i data-feather="tv" class="w-6 h-6"></i>
+                    </div>
+                    <p class="text-sm opacity-90">Subscribe to individual premium signal channels</p>
+                </a>
+                
+                <a href="{{ url_for('support') }}" 
+                   class="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 p-6 rounded-lg transition-all transform hover:scale-105">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-lg font-semibold">Get Support</h3>
+                        <i data-feather="help-circle" class="w-6 h-6"></i>
+                    </div>
+                    <p class="text-sm opacity-90">Need help? Contact our support team for assistance</p>
+                </a>
+            </div>
+        </div>
+        
+        {% if not active_subscriptions %}
+        <!-- No Subscriptions State -->
+        <div class="text-center py-16">
+            <div class="w-20 h-20 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-6">
+                <i data-feather="inbox" class="w-10 h-10 text-gray-400"></i>
+            </div>
+            <h3 class="text-2xl font-semibold mb-4">No Active Subscriptions</h3>
+            <p class="text-gray-400 mb-8 max-w-md mx-auto">
+                You don't have any active signal subscriptions yet. 
+                Start receiving professional trading signals by subscribing to our premium plans.
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="{{ url_for('bundles') }}" 
+                   class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors">
+                    🎯 View Bundle Deals
+                </a>
+                <a href="{{ url_for('channels') }}" 
+                   class="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors">
+                    📺 Browse Solo Channels
+                </a>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Account Information -->
+        <div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+            <h2 class="text-xl font-semibold mb-4">👤 Account Information</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="font-semibold mb-3">Profile Details</h3>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Telegram Username:</span>
+                            <span>@{{ user.telegram_username }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Member Since:</span>
+                            <span>{{ user.created_at.strftime('%B %d, %Y') }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Account Status:</span>
+                            <span>
+                                {% if user.is_active and not user.is_banned %}
+                                    <span class="text-green-400">Active</span>
+                                {% elif user.is_banned %}
+                                    <span class="text-red-400">Banned</span>
+                                {% else %}
+                                    <span class="text-yellow-400">Inactive</span>
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 class="font-semibold mb-3">Subscription History</h3>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Total Subscriptions:</span>
+                            <span>{{ user.subscriptions|length }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Currently Active:</span>
+                            <span>{{ active_subscriptions|length }}</span>
+                        </div>
+                        {% if user.subscriptions %}
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">First Subscription:</span>
+                            <span>{{ user.subscriptions|first }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Security Notice -->
+            <div class="mt-6 p-4 bg-blue-900 border border-blue-700 rounded-lg">
+                <div class="flex items-start">
+                    <i data-feather="shield" class="w-5 h-5 text-blue-400 mt-0.5 mr-3 flex-shrink-0"></i>
+                    <div class="text-sm text-blue-100">
+                        <strong>Security Tip:</strong> 
+                        Keep your PIN secure and never share it with anyone. 
+                        We will never ask for your PIN via Telegram or email.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

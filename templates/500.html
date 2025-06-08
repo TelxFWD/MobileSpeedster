@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Server Error - TeleSignals{% endblock %}
+
+{% block content %}
+<section class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-md w-full text-center">
+        <div class="mb-8">
+            <div class="w-24 h-24 bg-red-700 rounded-full flex items-center justify-center mx-auto mb-6">
+                <span class="text-4xl">⚠️</span>
+            </div>
+            <h1 class="text-6xl font-bold text-red-600 mb-4">500</h1>
+            <h2 class="text-2xl font-semibold mb-4">Server Error</h2>
+            <p class="text-gray-400 mb-8">
+                Oops! Something went wrong on our end. 
+                Our team has been notified and is working to fix the issue.
+            </p>
+        </div>
+        
+        <div class="space-y-4">
+            <button onclick="window.location.reload()" 
+                    class="block w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors">
+                🔄 Try Again
+            </button>
+            <a href="{{ url_for('index') }}" 
+               class="block w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors">
+                🏠 Go Home
+            </a>
+            <a href="{{ url_for('support') }}" 
+               class="block w-full bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors">
+                🛟 Contact Support
+            </a>
+        </div>
+        
+        <div class="mt-8 p-4 bg-gray-800 border border-gray-700 rounded-lg text-left">
+            <h3 class="font-semibold mb-2">What you can do:</h3>
+            <ul class="text-sm text-gray-400 space-y-1">
+                <li>• Wait a few minutes and try again</li>
+                <li>• Check if the issue persists across different pages</li>
+                <li>• Contact our support team if the problem continues</li>
+                <li>• Clear your browser cache and cookies</li>
+            </ul>
+        </div>
+        
+        <div class="mt-6 text-sm text-gray-500">
+            <p>Error occurred at: {{ moment().format('YYYY-MM-DD HH:mm:ss') }} UTC</p>
+        </div>
+    </div>
+</section>
+{% endblock %}

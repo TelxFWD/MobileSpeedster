@@ -1,0 +1,392 @@
+from flask import request, redirect, url_for, flash, session, jsonify, render_template
+from app import app, db
+from models import *
+from utils import generate_transaction_id
+from datetime import datetime, timedelta
+import requests
+import json
+import logging
+import os
+
+# PayPal API endpoints
+PAYPAL_SANDBOX_API = "https://api.sandbox.paypal.com"
+PAYPAL_LIVE_API = "https://api.paypal.com"
+
+# NOWPayments API endpoint
+NOWPAYMENTS_API = "https://api.nowpayments.io/v1"
+
+def get_paypal_access_token(is_sandbox=True):
+    """Get PayPal access token"""
+    payment_settings = PaymentSettings.query.first()
+    if not payment_settings or not payment_settings.paypal_client_id:
+        return None
+    
+    base_url = PAYPAL_SANDBOX_API if is_sandbox else PAYPAL_LIVE_API
+    auth_url = f"{base_url}/v1/oauth2/token"
+    
+    auth = (payment_settings.paypal_client_id, payment_settings.paypal_client_secret)
+    headers = {
+        'Accept': 'application/json',
+        'Accept-Language': 'en_US',
+    }
+    data = 'grant_type=client_credentials'
+    
+    try:
+        response = requests.post(auth_url, headers=headers, data=data, auth=auth)
+        if response.status_code == 200:
+            return response.json().get('access_token')
+    except Exception as e:
+        logging.error(f"PayPal auth error: {e}")
+    
+    return None
+
+@app.route('/create_paypal_order', methods=['POST'])
+def create_paypal_order():
+    """Create PayPal order"""
+    try:
+        plan_id = request.form.get('plan_id', type=int)
+        telegram_username = request.form.get('telegram_username', '').strip()
+        promo_code = request.form.get('promo_code', '').strip()
+        
+        if not plan_id or not telegram_username:
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        plan = Plan.query.get(plan_id)
+        if not plan or not plan.is_active:
+            return jsonify({'error': 'Invalid plan'}), 400
+        
+        # Calculate price with promo code
+        final_price = plan.price
+        if promo_code:
+            promo = PromoCode.query.filter_by(code=promo_code.upper()).first()
+            if promo and promo.is_valid():
+                final_price = final_price * (1 - promo.discount_percent / 100)
+        
+        # Get PayPal settings
+        payment_settings = PaymentSettings.query.first()
+        if not payment_settings:
+            return jsonify({'error': 'Payment not configured'}), 500
+        
+        access_token = get_paypal_access_token(payment_settings.paypal_sandbox)
+        if not access_token:
+            return jsonify({'error': 'PayPal authentication failed'}), 500
+        
+        # Create PayPal order
+        base_url = PAYPAL_SANDBOX_API if payment_settings.paypal_sandbox else PAYPAL_LIVE_API
+        order_url = f"{base_url}/v2/checkout/orders"
+        
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {access_token}',
+        }
+        
+        order_data = {
+            "intent": "CAPTURE",
+            "purchase_units": [{
+                "amount": {
+                    "currency_code": "USD",
+                    "value": f"{final_price:.2f}"
+                },
+                "description": f"{plan.name} Subscription"
+            }],
+            "application_context": {
+                "return_url": url_for('paypal_success', _external=True),
+                "cancel_url": url_for('paypal_cancel', _external=True)
+            }
+        }
+        
+        response = requests.post(order_url, headers=headers, json=order_data)
+        
+        if response.status_code == 201:
+            order = response.json()
+            
+            # Store order info in session
+            session['payment_order'] = {
+                'order_id': order['id'],
+                'plan_id': plan_id,
+                'telegram_username': telegram_username,
+                'promo_code': promo_code,
+                'amount': final_price
+            }
+            
+            # Get approval URL
+            approval_url = None
+            for link in order.get('links', []):
+                if link.get('rel') == 'approve':
+                    approval_url = link.get('href')
+                    break
+            
+            return jsonify({'approval_url': approval_url})
+        else:
+            logging.error(f"PayPal order creation failed: {response.text}")
+            return jsonify({'error': 'Failed to create PayPal order'}), 500
+            
+    except Exception as e:
+        logging.error(f"PayPal order creation error: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/paypal/success')
+def paypal_success():
+    """Handle PayPal payment success"""
+    try:
+        order_id = request.args.get('orderID')
+        payment_order = session.get('payment_order')
+        
+        if not order_id or not payment_order or payment_order['order_id'] != order_id:
+            flash('Invalid payment session', 'error')
+            return redirect(url_for('index'))
+        
+        # Capture the payment
+        payment_settings = PaymentSettings.query.first()
+        access_token = get_paypal_access_token(payment_settings.paypal_sandbox)
+        
+        base_url = PAYPAL_SANDBOX_API if payment_settings.paypal_sandbox else PAYPAL_LIVE_API
+        capture_url = f"{base_url}/v2/checkout/orders/{order_id}/capture"
+        
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {access_token}',
+        }
+        
+        response = requests.post(capture_url, headers=headers)
+        
+        if response.status_code == 201:
+            capture_data = response.json()
+            
+            # Process successful payment
+            success = process_successful_payment(
+                payment_order['telegram_username'],
+                payment_order['plan_id'],
+                payment_order['promo_code'],
+                payment_order['amount'],
+                'paypal',
+                order_id,
+                capture_data
+            )
+            
+            if success:
+                session.pop('payment_order', None)
+                flash('Payment successful! Your subscription is now active.', 'success')
+                return redirect(url_for('dashboard'))
+            else:
+                flash('Payment processed but subscription activation failed. Please contact support.', 'error')
+        else:
+            flash('Payment capture failed. Please contact support.', 'error')
+            
+    except Exception as e:
+        logging.error(f"PayPal success handling error: {e}")
+        flash('Payment processing error. Please contact support.', 'error')
+    
+    return redirect(url_for('index'))
+
+@app.route('/paypal/cancel')
+def paypal_cancel():
+    """Handle PayPal payment cancellation"""
+    session.pop('payment_order', None)
+    flash('Payment cancelled', 'info')
+    return redirect(url_for('index'))
+
+@app.route('/create_crypto_payment', methods=['POST'])
+def create_crypto_payment():
+    """Create NOWPayments crypto payment"""
+    try:
+        plan_id = request.form.get('plan_id', type=int)
+        telegram_username = request.form.get('telegram_username', '').strip()
+        promo_code = request.form.get('promo_code', '').strip()
+        currency = request.form.get('currency', 'btc').lower()
+        
+        if not plan_id or not telegram_username:
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        plan = Plan.query.get(plan_id)
+        if not plan or not plan.is_active:
+            return jsonify({'error': 'Invalid plan'}), 400
+        
+        # Calculate price with promo code
+        final_price = plan.price
+        if promo_code:
+            promo = PromoCode.query.filter_by(code=promo_code.upper()).first()
+            if promo and promo.is_valid():
+                final_price = final_price * (1 - promo.discount_percent / 100)
+        
+        # Get NOWPayments API key
+        payment_settings = PaymentSettings.query.first()
+        if not payment_settings or not payment_settings.nowpayments_api_key:
+            return jsonify({'error': 'Crypto payments not configured'}), 500
+        
+        # Create payment
+        headers = {
+            'x-api-key': payment_settings.nowpayments_api_key,
+            'Content-Type': 'application/json'
+        }
+        
+        payment_data = {
+            'price_amount': final_price,
+            'price_currency': 'usd',
+            'pay_currency': currency,
+            'order_id': generate_transaction_id(),
+            'order_description': f'{plan.name} Subscription'
+        }
+        
+        response = requests.post(f'{NOWPAYMENTS_API}/payment', 
+                               headers=headers, json=payment_data)
+        
+        if response.status_code == 201:
+            payment = response.json()
+            
+            # Store payment info
+            transaction = Transaction(
+                user_id=None,  # Will be set when user is created
+                transaction_id=payment['order_id'],
+                payment_method='crypto',
+                amount=final_price,
+                currency=currency.upper(),
+                status='pending',
+                webhook_data=json.dumps({
+                    'plan_id': plan_id,
+                    'telegram_username': telegram_username,
+                    'promo_code': promo_code,
+                    'nowpayments_id': payment['payment_id']
+                })
+            )
+            db.session.add(transaction)
+            db.session.commit()
+            
+            return jsonify({
+                'payment_address': payment['pay_address'],
+                'pay_amount': payment['pay_amount'],
+                'pay_currency': payment['pay_currency'],
+                'order_id': payment['order_id']
+            })
+        else:
+            logging.error(f"NOWPayments creation failed: {response.text}")
+            return jsonify({'error': 'Failed to create crypto payment'}), 500
+            
+    except Exception as e:
+        logging.error(f"Crypto payment creation error: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/webhook/nowpayments', methods=['POST'])
+def nowpayments_webhook():
+    """Handle NOWPayments webhook"""
+    try:
+        data = request.get_json()
+        if not data:
+            return 'No data', 400
+        
+        # Find transaction
+        order_id = data.get('order_id')
+        transaction = Transaction.query.filter_by(transaction_id=order_id).first()
+        
+        if not transaction:
+            logging.error(f"Transaction not found for order_id: {order_id}")
+            return 'Transaction not found', 404
+        
+        # Update transaction status
+        payment_status = data.get('payment_status')
+        transaction.status = payment_status
+        transaction.webhook_data = json.dumps(data)
+        
+        if payment_status == 'finished':
+            # Payment completed, activate subscription
+            webhook_data = json.loads(transaction.webhook_data)
+            
+            success = process_successful_payment(
+                webhook_data['telegram_username'],
+                webhook_data['plan_id'],
+                webhook_data.get('promo_code'),
+                transaction.amount,
+                'crypto',
+                order_id,
+                data
+            )
+            
+            if success:
+                transaction.completed_at = datetime.utcnow()
+        
+        db.session.commit()
+        return 'OK', 200
+        
+    except Exception as e:
+        logging.error(f"NOWPayments webhook error: {e}")
+        return 'Error', 500
+
+def process_successful_payment(telegram_username, plan_id, promo_code, amount, payment_method, transaction_id, webhook_data):
+    """Process successful payment and activate subscription"""
+    try:
+        # Remove @ if present
+        if telegram_username.startswith('@'):
+            telegram_username = telegram_username[1:]
+        
+        # Get or create user
+        user = User.query.filter_by(telegram_username=telegram_username).first()
+        if not user:
+            # For payments, we create user automatically if they don't exist
+            # They'll need to set a PIN when they first login
+            user = User(telegram_username=telegram_username)
+            user.set_pin('0000')  # Default PIN, user must change on first login
+            db.session.add(user)
+            db.session.flush()
+        
+        # Get plan
+        plan = Plan.query.get(plan_id)
+        if not plan:
+            logging.error(f"Plan not found: {plan_id}")
+            return False
+        
+        # Check for existing active subscription to prevent duplicates
+        existing_sub = Subscription.query.filter_by(
+            user_id=user.id,
+            plan_id=plan_id
+        ).filter(
+            Subscription.end_date > datetime.utcnow(),
+            Subscription.is_paid == True
+        ).first()
+        
+        if existing_sub:
+            # Extend existing subscription instead of creating new one
+            existing_sub.end_date += timedelta(days=plan.duration_days)
+        else:
+            # Create new subscription
+            subscription = Subscription(
+                user_id=user.id,
+                plan_id=plan_id,
+                start_date=datetime.utcnow(),
+                end_date=datetime.utcnow() + timedelta(days=plan.duration_days),
+                is_paid=True
+            )
+            db.session.add(subscription)
+            db.session.flush()
+        
+        # Create transaction record
+        transaction = Transaction(
+            user_id=user.id,
+            subscription_id=subscription.id if not existing_sub else existing_sub.id,
+            transaction_id=transaction_id,
+            payment_method=payment_method,
+            amount=amount,
+            currency='USD',
+            status='completed',
+            webhook_data=json.dumps(webhook_data),
+            completed_at=datetime.utcnow()
+        )
+        db.session.add(transaction)
+        
+        # Update promo code usage if used
+        if promo_code:
+            promo = PromoCode.query.filter_by(code=promo_code.upper()).first()
+            if promo and promo.is_valid():
+                promo.used_count += 1
+        
+        db.session.commit()
+        
+        # Send Telegram notification
+        from telegram_bot import send_subscription_notification
+        send_subscription_notification(user, plan)
+        
+        return True
+        
+    except Exception as e:
+        logging.error(f"Payment processing error: {e}")
+        db.session.rollback()
+        return False

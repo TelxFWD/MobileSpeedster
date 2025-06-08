@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Page Not Found - TeleSignals{% endblock %}
+
+{% block content %}
+<section class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-md w-full text-center">
+        <div class="mb-8">
+            <div class="w-24 h-24 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-6">
+                <span class="text-4xl">🔍</span>
+            </div>
+            <h1 class="text-6xl font-bold text-gray-600 mb-4">404</h1>
+            <h2 class="text-2xl font-semibold mb-4">Page Not Found</h2>
+            <p class="text-gray-400 mb-8">
+                Sorry, the page you're looking for doesn't exist. 
+                It might have been moved, deleted, or you entered the wrong URL.
+            </p>
+        </div>
+        
+        <div class="space-y-4">
+            <a href="{{ url_for('index') }}" 
+               class="block w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors">
+                🏠 Go Home
+            </a>
+            <a href="{{ url_for('bundles') }}" 
+               class="block w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors">
+                📦 View Bundles
+            </a>
+            <a href="{{ url_for('support') }}" 
+               class="block w-full bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors">
+                🛟 Get Support
+            </a>
+        </div>
+        
+        <div class="mt-8 text-sm text-gray-500">
+            <p>If you think this is an error, please <a href="{{ url_for('support') }}" class="text-blue-400 hover:text-blue-300">contact support</a>.</p>
+        </div>
+    </div>
+</section>
+{% endblock %}
