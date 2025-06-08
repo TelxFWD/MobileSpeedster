@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}User Profile - TeleSignals{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-900 py-8">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-white">👤 Profile Settings</h1>
+            <p class="text-gray-400 mt-2">Manage your account and security settings</p>
+        </div>
+
+        <!-- Profile Information -->
+        <div class="bg-gray-800 rounded-lg border border-gray-700 p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-6 flex items-center">
+                <i data-feather="user" class="w-5 h-5 mr-2"></i>
+                Account Information
+            </h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Telegram Username</label>
+                    <div class="bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-gray-400">
+                        @{{ user.telegram_username }}
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">Username cannot be changed</p>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Member Since</label>
+                    <div class="bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-gray-400">
+                        {{ user.created_at.strftime('%B %d, %Y') }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Security Settings -->
+        <div class="bg-gray-800 rounded-lg border border-gray-700 p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-6 flex items-center">
+                <i data-feather="lock" class="w-5 h-5 mr-2"></i>
+                Security Settings
+            </h2>
+            
+            <form id="pinChangeForm" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Current PIN</label>
+                        <input type="password" 
+                               id="currentPin"
+                               maxlength="4"
+                               class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               placeholder="••••">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">New PIN</label>
+                        <input type="password" 
+                               id="newPin"
+                               maxlength="4"
+                               class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               placeholder="••••">
+                    </div>
+                </div>
+                
+                <button type="submit" 
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors">
+                    Update PIN
+                </button>
+            </form>
+        </div>
+
+        <!-- Subscription Overview -->
+        <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+            <h2 class="text-xl font-semibold mb-6 flex items-center">
+                <i data-feather="calendar" class="w-5 h-5 mr-2"></i>
+                Active Subscriptions
+            </h2>
+            
+            {% if active_subscriptions %}
+                <div class="space-y-4">
+                    {% for subscription in active_subscriptions %}
+                    <div class="bg-gray-900 rounded-lg p-4 border border-gray-600">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="font-semibold text-white">{{ subscription.plan.name }}</h3>
+                                <p class="text-sm text-gray-400">
+                                    Expires: {{ subscription.end_date.strftime('%B %d, %Y') }}
+                                    ({{ subscription.days_remaining() }} days remaining)
+                                </p>
+                            </div>
+                            <div class="flex space-x-2">
+                                <a href="{{ url_for('renew_subscription', subscription_id=subscription.id) }}" 
+                                   class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm">
+                                    Renew
+                                </a>
+                                <form method="POST" action="{{ url_for('cancel_subscription', subscription_id=subscription.id) }}" class="inline">
+                                    <button type="submit" 
+                                            onclick="return confirm('Are you sure you want to cancel this subscription?')"
+                                            class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm">
+                                        Cancel
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center text-gray-400 py-8">
+                    <i data-feather="inbox" class="w-16 h-16 mx-auto mb-4 opacity-50"></i>
+                    <p class="text-lg">No active subscriptions</p>
+                    <p class="text-sm mt-2">Browse our plans to get started</p>
+                    <a href="{{ url_for('bundles') }}" 
+                       class="inline-block mt-4 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg">
+                        View Plans
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('pinChangeForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const currentPin = document.getElementById('currentPin').value;
+    const newPin = document.getElementById('newPin').value;
+    
+    if (!currentPin || !newPin) {
+        alert('Please fill in both PIN fields');
+        return;
+    }
+    
+    if (newPin.length !== 4 || !/^\d{4}$/.test(newPin)) {
+        alert('New PIN must be exactly 4 digits');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/user/profile', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                current_pin: currentPin,
+                new_pin: newPin
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('PIN updated successfully!');
+            document.getElementById('currentPin').value = '';
+            document.getElementById('newPin').value = '';
+        } else {
+            alert(data.message || 'Failed to update PIN');
+        }
+    } catch (error) {
+        alert('Error updating PIN. Please try again.');
+    }
+});
+
+// Initialize Feather icons
+feather.replace();
+</script>
+{% endblock %}

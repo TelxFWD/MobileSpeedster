@@ -1,8 +1,9 @@
 from flask import render_template, request, redirect, url_for, session, flash, jsonify
 from app import app, db
 from models import *
-from utils import login_required, calculate_discounted_price
+from utils import login_required, calculate_discounted_price, validate_pin
 from datetime import datetime, timedelta
+from sqlalchemy import or_
 import logging
 
 @app.route('/')
@@ -320,3 +321,14 @@ def search_plans():
             'channels': [{'name': ch.name} for ch in plan.get_channels()]
         } for plan in plans]
     })
+
+@app.route('/profile')
+@login_required
+def user_profile():
+    """User profile page"""
+    user = User.query.get(session['user_id'])
+    active_subscriptions = user.get_active_subscriptions()
+    
+    return render_template('user_profile.html', 
+                         user=user,
+                         active_subscriptions=active_subscriptions)
