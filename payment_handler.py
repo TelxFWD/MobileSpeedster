@@ -271,22 +271,43 @@ def create_crypto_payment():
         if not payment_settings or not payment_settings.nowpayments_api_key:
             return jsonify({'error': 'Crypto payments not configured'}), 500
         
-        # Create payment
+        # First, check if the currency is available
         headers = {
             'x-api-key': payment_settings.nowpayments_api_key,
             'Content-Type': 'application/json'
         }
         
+        # Get available currencies
+        try:
+            currencies_response = requests.get(f'{NOWPAYMENTS_API}/currencies', headers=headers)
+            if currencies_response.status_code == 200:
+                available_currencies = currencies_response.json().get('currencies', [])
+                if currency not in available_currencies:
+                    # Fallback to BTC if requested currency is not available
+                    currency = 'btc'
+                    logging.warning(f"Requested currency not available, falling back to BTC")
+            else:
+                logging.warning(f"Could not fetch currencies: {currencies_response.text}")
+                currency = 'btc'  # Safe fallback
+        except Exception as e:
+            logging.warning(f"Error checking currencies: {e}, using BTC as fallback")
+            currency = 'btc'
+        
+        # Create payment with improved error handling
         payment_data = {
-            'price_amount': final_price,
+            'price_amount': round(final_price, 2),
             'price_currency': 'usd',
             'pay_currency': currency,
             'order_id': generate_transaction_id(),
             'order_description': f'{plan.name} Subscription'
         }
         
+        logging.info(f"Creating NOWPayments order: {payment_data}")
+        
         response = requests.post(f'{NOWPAYMENTS_API}/payment', 
-                               headers=headers, json=payment_data)
+                               headers=headers, json=payment_data, timeout=30)
+        
+        logging.info(f"NOWPayments response: {response.status_code} - {response.text}")
         
         if response.status_code == 201:
             payment = response.json()
@@ -329,9 +350,26 @@ def create_crypto_payment():
                 'order_id': payment['order_id']
             })
         else:
-            logging.error(f"NOWPayments creation failed: {response.text}")
-            return jsonify({'error': 'Failed to create crypto payment'}), 500
+            error_msg = f"NOWPayments creation failed: Status {response.status_code} - {response.text}"
+            logging.error(error_msg)
             
+            # Try to parse error message for user-friendly response
+            try:
+                error_data = response.json()
+                user_message = error_data.get('message', 'Failed to create crypto payment')
+                if 'estimate' in user_message.lower():
+                    user_message = 'Cryptocurrency service temporarily unavailable. Please try again later or use PayPal.'
+            except:
+                user_message = 'Failed to create crypto payment. Please try again later.'
+            
+            return jsonify({'error': user_message}), 500
+            
+    except requests.exceptions.Timeout:
+        logging.error("NOWPayments request timeout")
+        return jsonify({'error': 'Payment service timeout. Please try again.'}), 500
+    except requests.exceptions.RequestException as e:
+        logging.error(f"NOWPayments request error: {e}")
+        return jsonify({'error': 'Payment service unavailable. Please try again later.'}), 500
     except Exception as e:
         logging.error(f"Crypto payment creation error: {e}")
         return jsonify({'error': 'Internal server error'}), 500
@@ -393,6 +431,38 @@ def check_payment_status(order_id):
             'session_order_id': payment_order.get('order_id') if payment_order else None,
             'session_expired': cleanup_expired_sessions(),
             'current_time': datetime.utcnow().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/test/nowpayments')
+def test_nowpayments():
+    """Test NOWPayments API connection"""
+    try:
+        payment_settings = PaymentSettings.query.first()
+        if not payment_settings or not payment_settings.nowpayments_api_key:
+            return jsonify({'error': 'NOWPayments not configured'}), 500
+        
+        headers = {
+            'x-api-key': payment_settings.nowpayments_api_key,
+            'Content-Type': 'application/json'
+        }
+        
+        # Test API status
+        status_response = requests.get(f'{NOWPAYMENTS_API}/status', headers=headers, timeout=10)
+        
+        # Test available currencies
+        currencies_response = requests.get(f'{NOWPAYMENTS_API}/currencies', headers=headers, timeout=10)
+        
+        return jsonify({
+            'api_status': {
+                'status_code': status_response.status_code,
+                'response': status_response.json() if status_response.status_code == 200 else status_response.text
+            },
+            'currencies': {
+                'status_code': currencies_response.status_code,
+                'available': currencies_response.json().get('currencies', [])[:10] if currencies_response.status_code == 200 else []
+            }
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
