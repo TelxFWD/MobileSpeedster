@@ -369,11 +369,31 @@ def create_crypto_payment():
             db.session.add(transaction)
             db.session.commit()
             
+            # Get network name with fallback
+            network_name = payment.get('network', '')
+            if not network_name and currency.upper().startswith('USDT'):
+                if 'trc20' in currency.lower():
+                    network_name = 'TRON (TRC-20)'
+                elif 'erc20' in currency.lower():
+                    network_name = 'Ethereum (ERC-20)'
+                else:
+                    network_name = 'TRON (TRC-20)'  # Default for USDT
+            elif not network_name:
+                # Map common currencies to networks
+                currency_networks = {
+                    'btc': 'Bitcoin',
+                    'eth': 'Ethereum',
+                    'ltc': 'Litecoin',
+                    'sol': 'Solana',
+                    'usdc': 'Ethereum'
+                }
+                network_name = currency_networks.get(currency.lower(), 'Standard')
+            
             return jsonify({
                 'payment_address': payment['pay_address'],
                 'pay_amount': payment['pay_amount'],
                 'pay_currency': payment['pay_currency'],
-                'network': payment.get('network', ''),
+                'network': network_name,
                 'order_id': payment['order_id']
             })
         else:

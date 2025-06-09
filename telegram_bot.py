@@ -91,6 +91,8 @@ def send_subscription_notification(user, plan):
         chat_id = get_user_chat_id(user.telegram_username)
         if not chat_id:
             logging.warning(f"Cannot send notification to {user.telegram_username}: no chat_id")
+            # For new users, provide instructions on how to link their account
+            logging.info(f"User {user.telegram_username} needs to start the bot to receive notifications")
             return False
         
         # Get channels for the plan
