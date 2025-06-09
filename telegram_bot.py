@@ -34,14 +34,17 @@ def send_telegram_message(chat_id, message, parse_mode='HTML'):
         return False
 
 def get_user_chat_id(telegram_username):
-    """Get user's chat ID by username (simplified - in production you'd need proper user mapping)"""
-    # This is a simplified approach. In production, you'd need to:
-    # 1. Have users start a conversation with your bot first
-    # 2. Store their chat_id when they send /start command
-    # 3. Map telegram_username to chat_id in database
+    """Get user's chat ID by username"""
+    from app import db
+    from models import User
     
-    # For now, we'll attempt to send to the username directly
-    return f"@{telegram_username}"
+    user = User.query.filter_by(telegram_username=telegram_username).first()
+    if user and hasattr(user, 'telegram_chat_id') and user.telegram_chat_id:
+        return user.telegram_chat_id
+    
+    # If no chat_id stored, we can't send messages
+    logging.warning(f"No chat_id found for user {telegram_username}")
+    return None
 
 def send_subscription_notification(user, plan):
     """Send subscription activation notification"""
@@ -51,6 +54,9 @@ def send_subscription_notification(user, plan):
             return False
         
         chat_id = get_user_chat_id(user.telegram_username)
+        if not chat_id:
+            logging.warning(f"Cannot send notification to {user.telegram_username}: no chat_id")
+            return False
         
         # Get channels for the plan
         channels = plan.get_channels()
