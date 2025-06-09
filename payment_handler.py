@@ -344,25 +344,6 @@ def nowpayments_webhook():
         if payment_status == 'finished':
             # Payment completed, activate subscription
             webhook_data = json.loads(transaction.webhook_data)
-
-
-@app.route('/api/payment/status/<order_id>')
-def check_payment_status(order_id):
-    """Check payment status for debugging"""
-    try:
-        payment_order = session.get('payment_order')
-        
-        return jsonify({
-            'order_id': order_id,
-            'session_exists': payment_order is not None,
-            'session_order_id': payment_order.get('order_id') if payment_order else None,
-            'session_expired': cleanup_expired_sessions(),
-            'current_time': datetime.utcnow().isoformat()
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
             
             success = process_successful_payment(
                 webhook_data['telegram_username'],
@@ -383,6 +364,22 @@ def check_payment_status(order_id):
     except Exception as e:
         logging.error(f"NOWPayments webhook error: {e}")
         return 'Error', 500
+
+@app.route('/api/payment/status/<order_id>')
+def check_payment_status(order_id):
+    """Check payment status for debugging"""
+    try:
+        payment_order = session.get('payment_order')
+        
+        return jsonify({
+            'order_id': order_id,
+            'session_exists': payment_order is not None,
+            'session_order_id': payment_order.get('order_id') if payment_order else None,
+            'session_expired': cleanup_expired_sessions(),
+            'current_time': datetime.utcnow().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 def process_successful_payment(telegram_username, plan_id, promo_code, amount, payment_method, transaction_id, webhook_data):
     """Process successful payment and activate subscription"""
