@@ -414,6 +414,7 @@ function showCryptoModal(paymentData) {
     document.getElementById('crypto-amount').textContent = 
         `${paymentData.pay_amount} ${paymentData.pay_currency.toUpperCase()}`;
     document.getElementById('crypto-address').textContent = paymentData.payment_address;
+    document.getElementById('crypto-network').textContent = paymentData.network || 'Standard';
     document.getElementById('crypto-modal').classList.remove('hidden');
 }
 
