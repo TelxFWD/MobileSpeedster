@@ -46,9 +46,12 @@
             <div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
                 <div class="flex items-center justify-between mb-2">
                     <h3 class="text-lg font-semibold">Total Channels</h3>
-                    {% set total_channels = active_subscriptions|map(attribute='plan')|map('get_channels')|map('length')|sum if active_subscriptions else 0 %}
+                    {% set total_channels = [] %}
+                    {% for subscription in active_subscriptions %}
+                        {% set _ = total_channels.extend(subscription.plan.get_channels()) %}
+                    {% endfor %}
                     <span class="bg-purple-900 text-purple-100 px-2 py-1 rounded-full text-xs">
-                        {{ total_channels }}
+                        {{ total_channels|length }}
                     </span>
                 </div>
                 <p class="text-gray-400 text-sm">Channels you have access to</p>
