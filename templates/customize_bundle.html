@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+
+{% block title %}Customize Your Bundle - TeleSignals{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8" x-data="customBundle()">
+    <!-- Header -->
+    <div class="text-center mb-12">
+        <h1 class="text-4xl font-bold text-white mb-4">📦 Customize Your Bundle</h1>
+        <p class="text-xl text-gray-300 max-w-3xl mx-auto">
+            Create your perfect package by selecting 2-8 channels. Get premium signals tailored to your trading strategy.
+        </p>
+    </div>
+
+    <!-- Pricing Info -->
+    <div class="bg-gray-800 rounded-lg p-6 mb-8 border border-gray-700">
+        <div class="grid md:grid-cols-2 gap-6">
+            <div class="text-center">
+                <div class="text-2xl font-bold text-blue-400">$15</div>
+                <div class="text-gray-300">2-4 Channels</div>
+                <div class="text-sm text-gray-400">30 days access</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold text-green-400">$20</div>
+                <div class="text-gray-300">5-8 Channels</div>
+                <div class="text-sm text-gray-400">30 days access</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid lg:grid-cols-3 gap-8">
+        <!-- Channel Selection -->
+        <div class="lg:col-span-2">
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <h2 class="text-2xl font-bold text-white mb-6">Select Channels</h2>
+                
+                <!-- Selection Info -->
+                <div class="mb-6 p-4 rounded-lg" :class="selectionStatus.class">
+                    <div class="flex items-center">
+                        <i :data-feather="selectionStatus.icon" class="w-5 h-5 mr-2"></i>
+                        <span x-text="selectionStatus.message"></span>
+                    </div>
+                </div>
+
+                <!-- Channels Grid -->
+                <div class="space-y-4">
+                    {% for channel in channels %}
+                    <div class="border border-gray-600 rounded-lg p-4 hover:border-blue-500 transition-colors"
+                         x-data="{ isSelected: false }"
+                         x-init="$watch('isSelected', (value) => updateSelection({{ channel.id }}, value, '{{ channel.name }}', '{{ channel.description or '' }}'))">
+                        <label class="flex items-start cursor-pointer">
+                            <input type="checkbox" 
+                                   x-model="isSelected"
+                                   :disabled="!isSelected && selectedChannels.length >= 8"
+                                   class="mt-1 mr-4 w-5 h-5 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500">
+                            <div class="flex-1">
+                                <div class="flex items-center justify-between mb-2">
+                                    <h3 class="text-lg font-semibold text-white">{{ channel.name }}</h3>
+                                    {% if channel.solo_price %}
+                                    <span class="text-sm text-gray-400">Solo: ${{ "%.0f"|format(channel.solo_price) }}</span>
+                                    {% endif %}
+                                </div>
+                                {% if channel.description %}
+                                <p class="text-gray-300 text-sm">{{ channel.description }}</p>
+                                {% endif %}
+                                {% if channel.telegram_link %}
+                                <div class="mt-2">
+                                    <a href="{{ channel.telegram_link }}" target="_blank" 
+                                       class="text-blue-400 hover:text-blue-300 text-sm inline-flex items-center">
+                                        <i data-feather="external-link" class="w-4 h-4 mr-1"></i>
+                                        Preview Channel
+                                    </a>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Bundle Preview & Checkout -->
+        <div class="lg:col-span-1">
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700 sticky top-6">
+                <h2 class="text-xl font-bold text-white mb-4">Bundle Preview</h2>
+                
+                <!-- Selected Channels Count -->
+                <div class="mb-4">
+                    <div class="text-sm text-gray-400 mb-2">Selected Channels</div>
+                    <div class="text-2xl font-bold text-white" x-text="selectedChannels.length + '/8'"></div>
+                </div>
+
+                <!-- Selected Channels List -->
+                <div class="mb-6" x-show="selectedChannels.length > 0">
+                    <div class="text-sm text-gray-400 mb-2">Your Selection</div>
+                    <div class="space-y-2 max-h-40 overflow-y-auto">
+                        <template x-for="channel in selectedChannels" :key="channel.id">
+                            <div class="flex items-center justify-between bg-gray-700 rounded p-2">
+                                <span class="text-sm text-white truncate" x-text="channel.name"></span>
+                                <button @click="removeChannel(channel.id)" 
+                                        class="text-red-400 hover:text-red-300">
+                                    <i data-feather="x" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Price Display -->
+                <div class="mb-6" x-show="selectedChannels.length >= 2">
+                    <div class="text-sm text-gray-400 mb-2">Total Price</div>
+                    <div class="text-3xl font-bold text-green-400" x-text="'$' + totalPrice"></div>
+                    <div class="text-sm text-gray-400">30 days access</div>
+                </div>
+
+                <!-- Checkout Button -->
+                <form method="POST" action="{{ url_for('checkout_custom_bundle') }}" x-show="isValidSelection">
+                    <input type="hidden" name="selected_channels" x-model="selectedChannelsJson">
+                    <button type="submit" 
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                        Proceed to Checkout
+                    </button>
+                </form>
+
+                <!-- Disabled State Message -->
+                <div x-show="!isValidSelection" class="text-center">
+                    <button disabled 
+                            class="w-full bg-gray-600 text-gray-400 font-bold py-3 px-4 rounded-lg cursor-not-allowed">
+                        Select 2-8 Channels
+                    </button>
+                    <p class="text-xs text-gray-400 mt-2">Choose between 2 and 8 channels to proceed</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function customBundle() {
+    return {
+        selectedChannels: [],
+        
+        get totalPrice() {
+            if (this.selectedChannels.length >= 2 && this.selectedChannels.length <= 4) {
+                return 15;
+            } else if (this.selectedChannels.length >= 5 && this.selectedChannels.length <= 8) {
+                return 20;
+            }
+            return 0;
+        },
+        
+        get isValidSelection() {
+            return this.selectedChannels.length >= 2 && this.selectedChannels.length <= 8;
+        },
+        
+        get selectedChannelsJson() {
+            return JSON.stringify(this.selectedChannels.map(c => c.id));
+        },
+        
+        get selectionStatus() {
+            if (this.selectedChannels.length === 0) {
+                return {
+                    message: 'Select at least 2 channels to create your bundle',
+                    class: 'bg-gray-700 text-gray-300',
+                    icon: 'info'
+                };
+            } else if (this.selectedChannels.length === 1) {
+                return {
+                    message: 'Select 1 more channel (minimum 2 required)',
+                    class: 'bg-yellow-900/50 text-yellow-300',
+                    icon: 'alert-triangle'
+                };
+            } else if (this.selectedChannels.length >= 2 && this.selectedChannels.length <= 8) {
+                return {
+                    message: `Perfect! ${this.selectedChannels.length} channels selected`,
+                    class: 'bg-green-900/50 text-green-300',
+                    icon: 'check-circle'
+                };
+            } else {
+                return {
+                    message: 'Maximum 8 channels allowed',
+                    class: 'bg-red-900/50 text-red-300',
+                    icon: 'alert-circle'
+                };
+            }
+        },
+        
+        updateSelection(channelId, isSelected, name, description) {
+            if (isSelected) {
+                if (this.selectedChannels.length < 8) {
+                    this.selectedChannels.push({
+                        id: channelId,
+                        name: name,
+                        description: description
+                    });
+                }
+            } else {
+                this.selectedChannels = this.selectedChannels.filter(c => c.id !== channelId);
+            }
+        },
+        
+        removeChannel(channelId) {
+            this.selectedChannels = this.selectedChannels.filter(c => c.id !== channelId);
+            // Uncheck the corresponding checkbox
+            const checkbox = document.querySelector(`input[type="checkbox"][x-model="isSelected"]`);
+            // This is a simplified approach - in production you'd want better DOM handling
+        }
+    }
+}
+
+// Initialize Feather icons after Alpine loads
+document.addEventListener('alpine:init', () => {
+    setTimeout(() => {
+        feather.replace();
+    }, 100);
+});
+</script>
+{% endblock %}

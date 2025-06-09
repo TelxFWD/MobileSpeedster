@@ -37,6 +37,52 @@ def customize_bundle():
     channels = Channel.query.filter_by(is_active=True).all()
     return render_template('customize_bundle.html', channels=channels)
 
+@app.route('/checkout/custom-bundle', methods=['POST'])
+def checkout_custom_bundle():
+    """Handle custom bundle checkout"""
+    import json
+    
+    try:
+        selected_channels_json = request.form.get('selected_channels')
+        if not selected_channels_json:
+            flash('No channels selected', 'error')
+            return redirect(url_for('customize_bundle'))
+        
+        selected_channel_ids = json.loads(selected_channels_json)
+        
+        # Validate selection
+        if len(selected_channel_ids) < 2 or len(selected_channel_ids) > 8:
+            flash('Please select between 2 and 8 channels', 'error')
+            return redirect(url_for('customize_bundle'))
+        
+        # Calculate price
+        if len(selected_channel_ids) <= 4:
+            price = 15.0
+        else:
+            price = 20.0
+        
+        # Get channel details
+        channels = Channel.query.filter(Channel.id.in_(selected_channel_ids)).all()
+        
+        # Store custom bundle info in session
+        session['custom_bundle'] = {
+            'channel_ids': selected_channel_ids,
+            'channels': [{'id': c.id, 'name': c.name} for c in channels],
+            'price': price,
+            'duration_days': 30
+        }
+        
+        # Create a temporary plan name
+        plan_name = f"Custom Bundle ({len(selected_channel_ids)} channels)"
+        
+        return render_template('checkout.html', 
+                             plan={'name': plan_name, 'price': price},
+                             is_custom_bundle=True)
+        
+    except (json.JSONDecodeError, ValueError) as e:
+        flash('Invalid channel selection', 'error')
+        return redirect(url_for('customize_bundle'))
+
 @app.route('/support')
 def support():
     faq_content = SiteContent.query.filter_by(key='faq').first()
