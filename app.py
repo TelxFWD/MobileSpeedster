@@ -57,4 +57,19 @@ from routes import *
 from admin_routes import *
 from payment_handler import *
 
+# Start bot service
+from bot_service import run_bot_service
+import threading
+
+def start_bot_background():
+    """Start bot service in background"""
+    try:
+        run_bot_service()
+    except Exception as e:
+        logging.error(f"Failed to start bot service: {e}")
+
+# Start bot in background thread
+bot_thread = threading.Thread(target=start_bot_background, daemon=True)
+bot_thread.start()
+
 
