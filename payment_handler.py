@@ -348,19 +348,22 @@ def create_crypto_payment():
                 db.session.add(user)
                 db.session.flush()  # Get the user ID
             
-            # Store payment info
+            # Store payment info with network information
+            network = payment.get('network', '')
             transaction = Transaction(
                 user_id=user.id,
                 transaction_id=payment['order_id'],
                 payment_method='crypto',
                 amount=final_price,
                 currency=currency.upper(),
+                network=network,
                 status='pending',
                 webhook_data=json.dumps({
                     'plan_id': plan_id,
                     'telegram_username': telegram_username,
                     'promo_code': promo_code,
-                    'nowpayments_id': payment['payment_id']
+                    'nowpayments_id': payment['payment_id'],
+                    'network': network
                 })
             )
             db.session.add(transaction)
@@ -370,6 +373,7 @@ def create_crypto_payment():
                 'payment_address': payment['pay_address'],
                 'pay_amount': payment['pay_amount'],
                 'pay_currency': payment['pay_currency'],
+                'network': payment.get('network', ''),
                 'order_id': payment['order_id']
             })
         else:

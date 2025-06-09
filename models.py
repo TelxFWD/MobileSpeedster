@@ -126,7 +126,8 @@ class Transaction(db.Model):
     transaction_id = db.Column(db.String(128), unique=True, nullable=False)
     payment_method = db.Column(db.String(32), nullable=False)  # 'paypal' or 'crypto'
     amount = db.Column(db.Float, nullable=False)
-    currency = db.Column(db.String(16), nullable=False)
+    currency = db.Column(db.String(32), nullable=False)
+    network = db.Column(db.String(32))  # Blockchain network for crypto payments
     status = db.Column(db.String(32), nullable=False)
     webhook_data = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
