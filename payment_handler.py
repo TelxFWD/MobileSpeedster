@@ -250,7 +250,7 @@ def create_crypto_payment():
         plan_id = request.form.get('plan_id', type=int)
         telegram_username = request.form.get('telegram_username', '').strip()
         promo_code = request.form.get('promo_code', '').strip()
-        currency = request.form.get('currency', 'btc').lower()
+        currency = request.form.get('crypto_currency', 'btc').lower()
         
         if not plan_id or not telegram_username:
             return jsonify({'error': 'Missing required fields'}), 400
