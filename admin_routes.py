@@ -340,7 +340,7 @@ def update_settings():
         bot_settings.notifications_enabled = request.form.get('notifications_enabled') == 'on'
         bot_settings.welcome_message = request.form.get('welcome_message', '').strip()
         
-    elif setting_type == 'payment':
+    elif setting_type == 'paypal':
         payment_settings = PaymentSettings.query.first()
         if not payment_settings:
             payment_settings = PaymentSettings()
@@ -349,7 +349,35 @@ def update_settings():
         payment_settings.paypal_client_id = request.form.get('paypal_client_id', '').strip()
         payment_settings.paypal_client_secret = request.form.get('paypal_client_secret', '').strip()
         payment_settings.paypal_sandbox = request.form.get('paypal_sandbox') == 'on'
+    
+    elif setting_type == 'nowpayments':
+        payment_settings = PaymentSettings.query.first()
+        if not payment_settings:
+            payment_settings = PaymentSettings()
+            db.session.add(payment_settings)
+        
         payment_settings.nowpayments_api_key = request.form.get('nowpayments_api_key', '').strip()
+    
+    elif setting_type == 'payment':
+        # Keep the old payment handler for backward compatibility
+        payment_settings = PaymentSettings.query.first()
+        if not payment_settings:
+            payment_settings = PaymentSettings()
+            db.session.add(payment_settings)
+        
+        # Only update fields that are provided
+        paypal_client_id = request.form.get('paypal_client_id', '').strip()
+        paypal_client_secret = request.form.get('paypal_client_secret', '').strip()
+        nowpayments_api_key = request.form.get('nowpayments_api_key', '').strip()
+        
+        if paypal_client_id:
+            payment_settings.paypal_client_id = paypal_client_id
+        if paypal_client_secret:
+            payment_settings.paypal_client_secret = paypal_client_secret
+        if request.form.get('paypal_sandbox') is not None:
+            payment_settings.paypal_sandbox = request.form.get('paypal_sandbox') == 'on'
+        if nowpayments_api_key:
+            payment_settings.nowpayments_api_key = nowpayments_api_key
     
     elif setting_type == 'admin':
         current_password = request.form.get('current_password')
