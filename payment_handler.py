@@ -291,9 +291,22 @@ def create_crypto_payment():
         if response.status_code == 201:
             payment = response.json()
             
+            # Remove @ if present
+            if telegram_username.startswith('@'):
+                telegram_username = telegram_username[1:]
+            
+            # Get or create user for crypto payments
+            user = User.query.filter_by(telegram_username=telegram_username).first()
+            if not user:
+                # Create user with default PIN for crypto payments
+                user = User(telegram_username=telegram_username)
+                user.set_pin('0000')  # Default PIN, user must change on first login
+                db.session.add(user)
+                db.session.flush()  # Get the user ID
+            
             # Store payment info
             transaction = Transaction(
-                user_id=None,  # Will be set when user is created
+                user_id=user.id,
                 transaction_id=payment['order_id'],
                 payment_method='crypto',
                 amount=final_price,
