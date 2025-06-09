@@ -27,7 +27,18 @@ def get_paypal_access_token(is_sandbox=True):
     auth = (payment_settings.paypal_client_id, payment_settings.paypal_client_secret)
     headers = {
         'Accept': 'application/json',
-
+        'Accept-Language': 'en_US',
+    }
+    data = 'grant_type=client_credentials'
+    
+    try:
+        response = requests.post(auth_url, headers=headers, data=data, auth=auth)
+        if response.status_code == 200:
+            return response.json().get('access_token')
+    except Exception as e:
+        logging.error(f"PayPal auth error: {e}")
+    
+    return None
 
 def cleanup_expired_sessions():
     """Clean up expired payment sessions"""
@@ -44,20 +55,6 @@ def cleanup_expired_sessions():
         logging.error(f"Error cleaning up session: {e}")
         session.pop('payment_order', None)
     return False
-
-
-        'Accept-Language': 'en_US',
-    }
-    data = 'grant_type=client_credentials'
-    
-    try:
-        response = requests.post(auth_url, headers=headers, data=data, auth=auth)
-        if response.status_code == 200:
-            return response.json().get('access_token')
-    except Exception as e:
-        logging.error(f"PayPal auth error: {e}")
-    
-    return None
 
 @app.route('/create_paypal_order', methods=['POST'])
 def create_paypal_order():
