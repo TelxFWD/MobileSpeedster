@@ -30,6 +30,13 @@ def channels():
     ).all()
     return render_template('channels.html', plans=solo_plans, channels=solo_channels)
 
+@app.route('/customize-bundle')
+def customize_bundle():
+    """Custom bundle creation page"""
+    # Get all active channels
+    channels = Channel.query.filter_by(is_active=True).all()
+    return render_template('customize_bundle.html', channels=channels)
+
 @app.route('/support')
 def support():
     faq_content = SiteContent.query.filter_by(key='faq').first()
