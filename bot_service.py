@@ -15,14 +15,19 @@ def run_bot_service():
     logger = logging.getLogger(__name__)
     
     def bot_worker():
+        # Check if bot token is available
+        if not os.environ.get('TELEGRAM_BOT_TOKEN'):
+            logger.info("TELEGRAM_BOT_TOKEN not found. Bot service disabled until token is provided.")
+            return
+            
         while True:
             try:
                 logger.info("Starting Telegram bot service...")
                 start_bot()
             except Exception as e:
                 logger.error(f"Bot service error: {e}")
-                logger.info("Restarting bot service in 5 seconds...")
-                time.sleep(5)
+                logger.info("Restarting bot service in 30 seconds...")
+                time.sleep(30)
     
     # Start bot in background thread
     bot_thread = threading.Thread(target=bot_worker, daemon=True)
