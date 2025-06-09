@@ -43,7 +43,7 @@
         </div>
         
         <div class="mt-6 text-sm text-gray-500">
-            <p>Error occurred at: {{ moment().format('YYYY-MM-DD HH:mm:ss') }} UTC</p>
+            <p>Error occurred at: {{ current_time.strftime('%Y-%m-%d %H:%M:%S') }} UTC</p>
         </div>
     </div>
 </section>

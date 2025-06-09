@@ -196,7 +196,7 @@ def not_found(error):
 @app.errorhandler(500)
 def internal_error(error):
     db.session.rollback()
-    return render_template('500.html'), 500
+    return render_template('500.html', current_time=datetime.utcnow()), 500
 
 @app.route('/api/promo/validate', methods=['POST'])
 def api_validate_promo():
