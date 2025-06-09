@@ -48,7 +48,11 @@ def start_bot():
                 if user:
                     # Update chat ID
                     user.telegram_chat_id = str(chat_id)
-                    db.session.commit()
+                    try:
+                        db.session.commit()
+                    except Exception as e:
+                        logging.error(f"Error updating chat ID: {e}")
+                        db.session.rollback()
                     
                     welcome_text = f"""
 🎉 Welcome back to TeleSignals, @{username}!
