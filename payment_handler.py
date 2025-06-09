@@ -282,16 +282,39 @@ def create_crypto_payment():
             currencies_response = requests.get(f'{NOWPAYMENTS_API}/currencies', headers=headers)
             if currencies_response.status_code == 200:
                 available_currencies = currencies_response.json().get('currencies', [])
+                logging.info(f"Available currencies: {available_currencies[:10]}...")  # Log first 10 for debugging
+                
+                # Check if requested currency is available
                 if currency not in available_currencies:
-                    # Fallback to BTC if requested currency is not available
-                    currency = 'btc'
-                    logging.warning(f"Requested currency not available, falling back to BTC")
+                    # Try common variations for USDT
+                    if currency == 'usdt':
+                        # Check for USDT variations
+                        usdt_variants = ['usdttrc20', 'usdterc20', 'usdt-trc20', 'usdt-erc20', 'tether']
+                        found_variant = None
+                        for variant in usdt_variants:
+                            if variant in available_currencies:
+                                found_variant = variant
+                                break
+                        
+                        if found_variant:
+                            currency = found_variant
+                            logging.info(f"Using USDT variant: {found_variant}")
+                        else:
+                            # Return error instead of fallback for USDT
+                            return jsonify({'error': 'USDT is not available. Please select a different cryptocurrency.'}), 400
+                    else:
+                        # For other currencies, fall back to BTC
+                        logging.warning(f"Currency {currency} not available, falling back to BTC")
+                        currency = 'btc'
+                else:
+                    logging.info(f"Using requested currency: {currency}")
             else:
                 logging.warning(f"Could not fetch currencies: {currencies_response.text}")
-                currency = 'btc'  # Safe fallback
+                # Don't fallback, return error
+                return jsonify({'error': 'Unable to verify cryptocurrency availability. Please try again.'}), 500
         except Exception as e:
-            logging.warning(f"Error checking currencies: {e}, using BTC as fallback")
-            currency = 'btc'
+            logging.warning(f"Error checking currencies: {e}")
+            return jsonify({'error': 'Cryptocurrency service temporarily unavailable. Please try again.'}), 500
         
         # Create payment with improved error handling
         payment_data = {
