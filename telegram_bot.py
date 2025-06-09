@@ -46,6 +46,41 @@ def get_user_chat_id(telegram_username):
     logging.warning(f"No chat_id found for user {telegram_username}")
     return None
 
+def handle_status_command(chat_id, username):
+    """Handle /status command"""
+    try:
+        from app import db
+        from models import User
+        
+        user = User.query.filter_by(telegram_username=username).first()
+        if not user:
+            message = "❌ You are not registered in our system. Please register on our website first."
+            send_telegram_message(chat_id, message)
+            return
+        
+        active_subs = user.get_active_subscriptions()
+        if not active_subs:
+            message = """
+📊 <b>Subscription Status</b>
+
+❌ No active subscriptions found.
+
+Visit our website to purchase a subscription and get access to premium signals!
+"""
+        else:
+            message = "📊 <b>Your Active Subscriptions</b>\n\n"
+            for sub in active_subs:
+                days_left = sub.days_remaining()
+                message += f"🔸 <b>{sub.plan.name}</b>\n"
+                message += f"   ⏰ {days_left} days remaining\n"
+                message += f"   📅 Expires: {sub.end_date.strftime('%Y-%m-%d')}\n\n"
+        
+        send_telegram_message(chat_id, message)
+        
+    except Exception as e:
+        logging.error(f"Status command error: {e}")
+        send_telegram_message(chat_id, "❌ Error retrieving status. Please try again later.")
+
 def send_subscription_notification(user, plan):
     """Send subscription activation notification"""
     try:
