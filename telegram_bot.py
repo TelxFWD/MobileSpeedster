@@ -14,6 +14,14 @@ def get_bot_token():
 def send_telegram_message(chat_id, message, parse_mode='HTML'):
     """Send message via Telegram Bot API"""
     try:
+        # Try to use the bot runner if available
+        try:
+            from bot_runner import send_telegram_message as bot_send
+            return bot_send(chat_id, message, parse_mode)
+        except ImportError:
+            pass
+        
+        # Fallback to direct API call
         token = get_bot_token()
         if not token:
             logging.error("No Telegram bot token configured")
@@ -23,11 +31,18 @@ def send_telegram_message(chat_id, message, parse_mode='HTML'):
         data = {
             'chat_id': chat_id,
             'text': message,
-            'parse_mode': parse_mode
+            'parse_mode': parse_mode,
+            'disable_web_page_preview': True
         }
         
-        response = requests.post(url, json=data)
-        return response.status_code == 200
+        response = requests.post(url, data=data, timeout=10)
+        
+        if response.status_code == 200:
+            logging.info(f"Message sent successfully to {chat_id}")
+            return True
+        else:
+            logging.error(f"Failed to send message: {response.text}")
+            return False
         
     except Exception as e:
         logging.error(f"Telegram message send error: {e}")
