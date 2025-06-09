@@ -3,7 +3,7 @@ from app import app, db
 from sqlalchemy import text
 
 def migrate_currency_field():
-    """Migrate currency field to allow longer cryptocurrency names"""
+    """Migrate currency field and add network column"""
     with app.app_context():
         try:
             # Check if we're using SQLite or PostgreSQL
@@ -19,7 +19,8 @@ def migrate_currency_field():
                         transaction_id VARCHAR(128) UNIQUE NOT NULL,
                         payment_method VARCHAR(32) NOT NULL,
                         amount FLOAT NOT NULL,
-                        currency VARCHAR(16) NOT NULL,
+                        currency VARCHAR(32) NOT NULL,
+                        network VARCHAR(32),
                         status VARCHAR(32) NOT NULL,
                         webhook_data TEXT,
                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -29,10 +30,10 @@ def migrate_currency_field():
                     );
                 '''))
                 
-                # Copy data
+                # Copy data from old table to new table
                 db.engine.execute(text('''
-                    INSERT INTO transaction_new 
-                    SELECT * FROM transaction;
+                    INSERT INTO transaction_new (id, user_id, subscription_id, transaction_id, payment_method, amount, currency, status, webhook_data, created_at, completed_at)
+                    SELECT id, user_id, subscription_id, transaction_id, payment_method, amount, currency, status, webhook_data, created_at, completed_at FROM transaction;
                 '''))
                 
                 # Drop old table and rename new one
@@ -41,7 +42,12 @@ def migrate_currency_field():
                 
             else:
                 # PostgreSQL approach
-                db.engine.execute(text('ALTER TABLE transaction ALTER COLUMN currency TYPE VARCHAR(16);'))
+                db.engine.execute(text('ALTER TABLE transaction ALTER COLUMN currency TYPE VARCHAR(32);'))
+                # Add network column if it doesn't exist
+                try:
+                    db.engine.execute(text('ALTER TABLE transaction ADD COLUMN network VARCHAR(32);'))
+                except:
+                    pass  # Column might already exist
             
             print("Migration completed successfully!")
             
