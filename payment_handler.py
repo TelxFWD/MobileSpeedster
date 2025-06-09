@@ -27,6 +27,25 @@ def get_paypal_access_token(is_sandbox=True):
     auth = (payment_settings.paypal_client_id, payment_settings.paypal_client_secret)
     headers = {
         'Accept': 'application/json',
+
+
+def cleanup_expired_sessions():
+    """Clean up expired payment sessions"""
+    try:
+        if 'payment_order' in session:
+            payment_order = session['payment_order']
+            if 'expires_at' in payment_order:
+                expires_at = datetime.fromisoformat(payment_order['expires_at'])
+                if datetime.utcnow() > expires_at:
+                    logging.info("Cleaning up expired payment session")
+                    session.pop('payment_order', None)
+                    return True
+    except Exception as e:
+        logging.error(f"Error cleaning up session: {e}")
+        session.pop('payment_order', None)
+    return False
+
+
         'Accept-Language': 'en_US',
     }
     data = 'grant_type=client_credentials'
@@ -100,13 +119,15 @@ def create_paypal_order():
         if response.status_code == 201:
             order = response.json()
             
-            # Store order info in session
+            # Store order info in session with timestamp
             session['payment_order'] = {
                 'order_id': order['id'],
                 'plan_id': plan_id,
                 'telegram_username': telegram_username,
                 'promo_code': promo_code,
-                'amount': final_price
+                'amount': final_price,
+                'created_at': datetime.utcnow().isoformat(),
+                'expires_at': (datetime.utcnow() + timedelta(minutes=30)).isoformat()
             }
             
             # Get approval URL
@@ -129,16 +150,52 @@ def create_paypal_order():
 def paypal_success():
     """Handle PayPal payment success"""
     try:
-        order_id = request.args.get('orderID')
+        # PayPal returns 'orderID' in callback but we might get 'order_id' or 'orderID'
+        order_id = request.args.get('orderID') or request.args.get('order_id')
         payment_order = session.get('payment_order')
         
-        if not order_id or not payment_order or payment_order['order_id'] != order_id:
-            flash('Invalid payment session', 'error')
+        # Enhanced validation with logging
+        if not order_id:
+            logging.error("PayPal success: No order ID provided in callback")
+            flash('Payment verification failed - missing order ID', 'error')
             return redirect(url_for('index'))
+            
+        if not payment_order:
+            logging.error(f"PayPal success: No payment session found for order {order_id}")
+            flash('Payment session expired. Please try again.', 'error')
+            return redirect(url_for('index'))
+            
+        if payment_order.get('order_id') != order_id:
+            logging.error(f"PayPal success: Order ID mismatch. Session: {payment_order.get('order_id')}, Callback: {order_id}")
+            flash('Payment verification failed - order mismatch', 'error')
+            return redirect(url_for('index'))
+            
+        # Check session expiration
+        if 'expires_at' in payment_order:
+            expires_at = datetime.fromisoformat(payment_order['expires_at'])
+            if datetime.utcnow() > expires_at:
+                logging.error(f"PayPal success: Payment session expired for order {order_id}")
+                session.pop('payment_order', None)
+                flash('Payment session expired. Please try again.', 'error')
+                return redirect(url_for('index'))
+        
+        # Log successful callback
+        logging.info(f"PayPal success callback received for order: {order_id}")
+        logging.info(f"Payment order data: {payment_order}")
         
         # Capture the payment
         payment_settings = PaymentSettings.query.first()
+        if not payment_settings:
+            logging.error("PayPal success: No payment settings configured")
+            flash('Payment configuration error. Please contact support.', 'error')
+            return redirect(url_for('index'))
+            
         access_token = get_paypal_access_token(payment_settings.paypal_sandbox)
+        
+        if not access_token:
+            logging.error("PayPal success: Failed to get access token")
+            flash('Payment verification failed. Please contact support.', 'error')
+            return redirect(url_for('index'))
         
         base_url = PAYPAL_SANDBOX_API if payment_settings.paypal_sandbox else PAYPAL_LIVE_API
         capture_url = f"{base_url}/v2/checkout/orders/{order_id}/capture"
@@ -290,6 +347,25 @@ def nowpayments_webhook():
         if payment_status == 'finished':
             # Payment completed, activate subscription
             webhook_data = json.loads(transaction.webhook_data)
+
+
+@app.route('/api/payment/status/<order_id>')
+def check_payment_status(order_id):
+    """Check payment status for debugging"""
+    try:
+        payment_order = session.get('payment_order')
+        
+        return jsonify({
+            'order_id': order_id,
+            'session_exists': payment_order is not None,
+            'session_order_id': payment_order.get('order_id') if payment_order else None,
+            'session_expired': cleanup_expired_sessions(),
+            'current_time': datetime.utcnow().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
             
             success = process_successful_payment(
                 webhook_data['telegram_username'],
