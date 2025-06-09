@@ -147,8 +147,11 @@ def create_paypal_order():
 def paypal_success():
     """Handle PayPal payment success"""
     try:
-        # PayPal returns 'orderID' in callback but we might get 'order_id' or 'orderID'
-        order_id = request.args.get('orderID') or request.args.get('order_id')
+        # Log all callback parameters for debugging
+        logging.info(f"PayPal callback received with parameters: {dict(request.args)}")
+        
+        # PayPal returns 'token' in callback which is the order ID
+        order_id = request.args.get('token') or request.args.get('orderID') or request.args.get('order_id')
         payment_order = session.get('payment_order')
         
         # Enhanced validation with logging
