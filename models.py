@@ -158,3 +158,18 @@ class PaymentSettings(db.Model):
     paypal_sandbox = db.Column(db.Boolean, default=True)
     nowpayments_api_key = db.Column(db.String(256))
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class BotLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    action_type = db.Column(db.String(32), nullable=False)  # 'ban', 'unban', 'manual_ban', 'manual_unban'
+    user_id = db.Column(db.Integer)
+    channel_id = db.Column(db.String(128))
+    reason = db.Column(db.String(256))
+    success = db.Column(db.Boolean, default=True)
+    error_message = db.Column(db.Text)
+    dry_run = db.Column(db.Boolean, default=False)
+    admin_user = db.Column(db.String(64))  # Admin who performed manual action
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def __repr__(self):
+        return f'<BotLog {self.action_type} user:{self.user_id} channel:{self.channel_id}>'
