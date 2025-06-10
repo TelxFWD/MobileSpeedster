@@ -1,8 +1,8 @@
-modules = ["web", "python-3.11"]
+modules = ["web", "python-3.11", "postgresql-16"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["openssl", "postgresql"]
+packages = ["openssl", "postgresql", "sqlite"]
 
 [deployment]
 deploymentTarget = "autoscale"
