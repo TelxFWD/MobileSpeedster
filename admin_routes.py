@@ -206,6 +206,7 @@ def create_channel():
     telegram_link = request.form.get('telegram_link', '').strip()
     solo_price = request.form.get('solo_price', type=float)
     solo_duration_days = request.form.get('solo_duration_days', type=int)
+    show_in_custom_bundle = request.form.get('show_in_custom_bundle') == 'on'
     
     if not all([name, telegram_link]):
         flash('Please fill in required fields', 'error')
@@ -216,7 +217,8 @@ def create_channel():
         description=description,
         telegram_link=telegram_link,
         solo_price=solo_price,
-        solo_duration_days=solo_duration_days
+        solo_duration_days=solo_duration_days,
+        show_in_custom_bundle=show_in_custom_bundle
     )
     db.session.add(channel)
     db.session.commit()
@@ -233,6 +235,26 @@ def toggle_channel_status(channel_id):
     
     status = 'activated' if channel.is_active else 'deactivated'
     flash(f'Channel {channel.name} has been {status}', 'success')
+    return redirect(url_for('admin_channels'))
+
+@app.route('/admin/channel/<int:channel_id>/edit', methods=['POST'])
+@admin_required
+def edit_channel(channel_id):
+    channel = Channel.query.get_or_404(channel_id)
+    
+    channel.name = request.form.get('name', '').strip()
+    channel.description = request.form.get('description', '').strip()
+    channel.telegram_link = request.form.get('telegram_link', '').strip()
+    channel.solo_price = request.form.get('solo_price', type=float)
+    channel.solo_duration_days = request.form.get('solo_duration_days', type=int)
+    channel.show_in_custom_bundle = request.form.get('show_in_custom_bundle') == 'on'
+    
+    if not all([channel.name, channel.telegram_link]):
+        flash('Please fill in required fields', 'error')
+        return redirect(url_for('admin_channels'))
+    
+    db.session.commit()
+    flash('Channel updated successfully!', 'success')
     return redirect(url_for('admin_channels'))
 
 @app.route('/admin/promos')

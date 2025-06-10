@@ -126,6 +126,9 @@
                                 {% if channel.solo_price %}
                                     <span class="bg-blue-900 text-blue-100 px-2 py-1 rounded-full text-xs ml-2">Solo</span>
                                 {% endif %}
+                                {% if channel.show_in_custom_bundle %}
+                                    <span class="bg-purple-900 text-purple-100 px-2 py-1 rounded-full text-xs ml-2">Bundle</span>
+                                {% endif %}
                             </div>
                         </div>
                         {% if channel.solo_price %}
@@ -170,7 +173,8 @@
                                 {% if channel.is_active %}Disable{% else %}Enable{% endif %}
                             </button>
                         </form>
-                        <button class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-semibold transition-colors">
+                        <button onclick="editChannel({{ channel.id }}, '{{ channel.name }}', '{{ channel.description or '' }}', '{{ channel.telegram_link }}', {{ channel.solo_price or 'null' }}, {{ channel.solo_duration_days or 30 }}, {{ channel.show_in_custom_bundle|lower }})" 
+                                class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-semibold transition-colors">
                             Edit
                         </button>
                     </div>
@@ -258,6 +262,17 @@
                     </div>
                 </div>
                 
+                <div class="border-t border-gray-700 pt-4">
+                    <label class="flex items-center space-x-3">
+                        <input type="checkbox" 
+                               name="show_in_custom_bundle" 
+                               checked
+                               class="w-4 h-4 text-green-600 bg-gray-900 border-gray-600 rounded focus:ring-green-500 focus:ring-2">
+                        <span class="text-sm font-medium text-gray-300">Show in Custom Bundle</span>
+                    </label>
+                    <p class="text-xs text-gray-400 mt-1">Allow users to select this channel when creating custom bundles</p>
+                </div>
+                
                 <div class="flex gap-3 pt-4">
                     <button type="submit" 
                             class="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors">
@@ -273,8 +288,106 @@
         </div>
     </dialog>
 
+    <!-- Edit Channel Modal -->
+    <dialog id="editChannelModal" class="backdrop:bg-black backdrop:bg-opacity-50 bg-transparent">
+        <div class="bg-gray-800 rounded-lg border border-gray-700 w-full max-w-2xl mx-auto p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold">✏️ Edit Channel</h2>
+                <button onclick="document.getElementById('editChannelModal').close()" class="text-gray-400 hover:text-white">
+                    <i data-feather="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+            
+            <form id="editChannelForm" method="POST" action="" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Channel Name *</label>
+                    <input type="text" 
+                           name="name" 
+                           id="editName"
+                           required
+                           class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Description</label>
+                    <textarea name="description" 
+                              id="editDescription"
+                              rows="3"
+                              class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"></textarea>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Telegram Link *</label>
+                    <input type="url" 
+                           name="telegram_link" 
+                           id="editTelegramLink"
+                           required
+                           class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500">
+                </div>
+                
+                <div class="border-t border-gray-700 pt-4">
+                    <h3 class="text-lg font-semibold mb-3">Solo Channel Pricing</h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Solo Price (USD)</label>
+                            <input type="number" 
+                                   name="solo_price" 
+                                   id="editSoloPrice"
+                                   step="0.01"
+                                   min="0"
+                                   class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Duration (Days)</label>
+                            <input type="number" 
+                                   name="solo_duration_days" 
+                                   id="editSoloDays"
+                                   min="1"
+                                   class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="border-t border-gray-700 pt-4">
+                    <label class="flex items-center space-x-3">
+                        <input type="checkbox" 
+                               name="show_in_custom_bundle" 
+                               id="editShowInBundle"
+                               class="w-4 h-4 text-green-600 bg-gray-900 border-gray-600 rounded focus:ring-green-500 focus:ring-2">
+                        <span class="text-sm font-medium text-gray-300">Show in Custom Bundle</span>
+                    </label>
+                </div>
+                
+                <div class="flex gap-3 pt-4">
+                    <button type="submit" 
+                            class="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors">
+                        Save Changes
+                    </button>
+                    <button type="button" 
+                            onclick="document.getElementById('editChannelModal').close()"
+                            class="flex-1 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
     <script>
         feather.replace();
+        
+        function editChannel(id, name, description, telegramLink, soloPrice, soloDays, showInBundle) {
+            document.getElementById('editChannelForm').action = `/admin/channel/${id}/edit`;
+            document.getElementById('editName').value = name;
+            document.getElementById('editDescription').value = description;
+            document.getElementById('editTelegramLink').value = telegramLink;
+            document.getElementById('editSoloPrice').value = soloPrice || '';
+            document.getElementById('editSoloDays').value = soloDays || 30;
+            document.getElementById('editShowInBundle').checked = showInBundle;
+            document.getElementById('editChannelModal').showModal();
+        }
         
         // Auto-hide flash messages
         setTimeout(() => {
