@@ -49,11 +49,11 @@
                                 <div class="text-sm text-gray-400">{{ plan.duration_days }} days</div>
                             </div>
                         </div>
-                        
+
                         {% if plan.description %}
                         <p class="text-gray-400 mb-4">{{ plan.description }}</p>
                         {% endif %}
-                        
+
                         <!-- Included Channels -->
                         <div class="mb-6">
                             <h4 class="text-sm font-semibold text-gray-300 mb-2">📺 Channel:</h4>
@@ -66,7 +66,7 @@
                             </div>
                             {% endfor %}
                         </div>
-                        
+
                         <a href="{{ url_for('checkout', plan_id=plan.id) }}" 
                            class="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-4 rounded-lg transition-all transform hover:scale-105 text-center block">
                             🚀 Subscribe Now
@@ -101,7 +101,7 @@
                     <div class="absolute top-4 right-4 bg-gradient-to-r from-yellow-500 to-orange-500 text-black text-xs font-bold px-3 py-1 rounded-full">
                         LIFETIME
                     </div>
-                    
+
                     <div class="p-6">
                         <div class="flex justify-between items-start mb-4">
                             <h3 class="text-xl font-semibold">{{ plan.name }}</h3>
@@ -110,27 +110,19 @@
                                 <div class="text-sm text-yellow-300">Forever</div>
                             </div>
                         </div>
-                        
+
                         {% if plan.description %}
                         <p class="text-gray-400 mb-4">{{ plan.description }}</p>
                         {% endif %}
-                        
+
                         <!-- Special Lifetime Features -->
                         <div class="mb-4">
                             <div class="flex items-center text-sm text-yellow-400 mb-2">
                                 <i data-feather="infinity" class="w-4 h-4 mr-2"></i>
                                 Lifetime Access - No Renewals
                             </div>
-                            <div class="flex items-center text-sm text-yellow-400 mb-2">
-                                <i data-feather="star" class="w-4 h-4 mr-2"></i>
-                                Priority Support
-                            </div>
-                            <div class="flex items-center text-sm text-yellow-400">
-                                <i data-feather="trending-up" class="w-4 h-4 mr-2"></i>
-                                All Future Updates Included
-                            </div>
                         </div>
-                        
+
                         <!-- Included Channels -->
                         <div class="mb-6">
                             <h4 class="text-sm font-semibold text-gray-300 mb-2">📺 Channel:</h4>
@@ -143,7 +135,7 @@
                             </div>
                             {% endfor %}
                         </div>
-                        
+
                         <a href="{{ url_for('checkout', plan_id=plan.id) }}" 
                            class="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-black font-bold py-3 px-4 rounded-lg transition-all transform hover:scale-105 text-center block">
                             🌟 Get Lifetime Access
@@ -176,7 +168,7 @@
             <h2 class="text-3xl font-bold mb-4">Solo Channel Benefits</h2>
             <p class="text-xl text-gray-400">Perfect for focused trading strategies</p>
         </div>
-        
+
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div class="text-center">
                 <div class="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -185,7 +177,7 @@
                 <h3 class="text-xl font-semibold mb-2">Focused Strategy</h3>
                 <p class="text-gray-400">Get signals from a specific trading strategy or market focus.</p>
             </div>
-            
+
             <div class="text-center">
                 <div class="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
                     <i data-feather="dollar-sign" class="w-8 h-8"></i>
@@ -193,7 +185,7 @@
                 <h3 class="text-xl font-semibold mb-2">Cost Effective</h3>
                 <p class="text-gray-400">Pay only for the specific channel you want to follow.</p>
             </div>
-            
+
             <div class="text-center">
                 <div class="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
                     <i data-feather="zap" class="w-8 h-8"></i>
