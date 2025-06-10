@@ -117,13 +117,26 @@
                     <div class="flex justify-between items-start mb-4">
                         <div>
                             <h3 class="text-xl font-semibold">{{ plan.name }}</h3>
-                            <span class="inline-block bg-{% if plan.plan_type == 'bundle' %}purple{% else %}blue{% endif %}-900 text-{% if plan.plan_type == 'bundle' %}purple{% else %}blue{% endif %}-100 px-2 py-1 rounded-full text-xs mt-1">
-                                {{ plan.plan_type.title() }}
-                            </span>
+                            <div class="flex gap-2 mt-1">
+                                <span class="inline-block bg-{% if plan.plan_type == 'bundle' %}purple{% else %}blue{% endif %}-900 text-{% if plan.plan_type == 'bundle' %}purple{% else %}blue{% endif %}-100 px-2 py-1 rounded-full text-xs">
+                                    {{ plan.plan_type.title() }}
+                                </span>
+                                {% if plan.is_lifetime %}
+                                <span class="inline-block bg-yellow-900 text-yellow-100 px-2 py-1 rounded-full text-xs">
+                                    ⭐ Lifetime
+                                </span>
+                                {% endif %}
+                            </div>
                         </div>
                         <div class="text-right">
                             <div class="text-2xl font-bold text-green-400">${{ "%.2f"|format(plan.price) }}</div>
-                            <div class="text-sm text-gray-400">{{ plan.duration_days }} days</div>
+                            <div class="text-sm text-gray-400">
+                                {% if plan.is_lifetime %}
+                                    Lifetime Access
+                                {% else %}
+                                    {{ plan.duration_days }} days
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                     
@@ -170,6 +183,10 @@
                     
                     <!-- Actions -->
                     <div class="flex gap-2">
+                        <button onclick="openEditPlanModal({{ plan.id }}, '{{ plan.name }}', '{{ plan.description or '' }}', '{{ plan.plan_type }}', {{ plan.price }}, {{ plan.duration_days }}, {{ plan.is_lifetime|lower }}, '{{ plan.folder_link or '' }}', [{% for channel in plan.get_channels() %}{{ channel.id }}{% if not loop.last %},{% endif %}{% endfor %}])"
+                                class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-semibold transition-colors">
+                            Edit
+                        </button>
                         <form method="POST" action="{{ url_for('toggle_plan_status', plan_id=plan.id) }}" class="flex-1">
                             <button type="submit" 
                                     class="w-full {% if plan.is_active %}bg-red-600 hover:bg-red-700{% else %}bg-green-600 hover:bg-green-700{% endif %} text-white px-3 py-2 rounded text-sm font-semibold transition-colors">
@@ -256,14 +273,39 @@
                                placeholder="29.99">
                     </div>
                     
-                    <div>
-                        <label class="block text-sm font-medium text-gray-300 mb-2">Duration (Days) *</label>
-                        <input type="number" 
-                               name="duration_days" 
-                               min="1"
-                               required
-                               class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-                               placeholder="30">
+                    <div x-data="{ isLifetime: false }">
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Duration</label>
+                        
+                        <!-- Lifetime Toggle -->
+                        <div class="mb-3">
+                            <label class="flex items-center cursor-pointer">
+                                <input type="checkbox" 
+                                       name="is_lifetime"
+                                       x-model="isLifetime"
+                                       class="mr-2 text-yellow-600 focus:ring-yellow-500">
+                                <span class="text-sm font-medium text-yellow-400">Lifetime Plan</span>
+                            </label>
+                        </div>
+                        
+                        <!-- Duration Days Input (hidden when lifetime) -->
+                        <div x-show="!isLifetime">
+                            <input type="number" 
+                                   name="duration_days" 
+                                   min="1"
+                                   :required="!isLifetime"
+                                   class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+                                   placeholder="30">
+                            <p class="text-xs text-gray-400 mt-1">Number of days for regular plans</p>
+                        </div>
+                        
+                        <!-- Lifetime Notice -->
+                        <div x-show="isLifetime" class="bg-yellow-900 border border-yellow-700 rounded-lg p-3">
+                            <div class="flex items-center text-yellow-100">
+                                <i data-feather="star" class="w-4 h-4 mr-2"></i>
+                                <span class="text-sm font-medium">Lifetime Access Plan</span>
+                            </div>
+                            <p class="text-xs text-yellow-200 mt-1">No expiration date - permanent access</p>
+                        </div>
                     </div>
                 </div>
                 
@@ -314,8 +356,169 @@
         </div>
     </dialog>
 
+    <!-- Edit Plan Modal -->
+    <dialog id="editPlanModal" class="backdrop:bg-black backdrop:bg-opacity-50 bg-transparent">
+        <div class="bg-gray-800 rounded-lg border border-gray-700 w-full max-w-2xl mx-auto p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold">✏️ Edit Plan</h2>
+                <button onclick="document.getElementById('editPlanModal').close()" class="text-gray-400 hover:text-white">
+                    <i data-feather="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+            
+            <form method="POST" action="" id="editPlanForm" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Plan Name *</label>
+                        <input type="text" 
+                               name="name" 
+                               id="editPlanName"
+                               required
+                               class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Plan Type *</label>
+                        <select name="plan_type" 
+                                id="editPlanType"
+                                required
+                                x-data="{ planType: 'bundle' }"
+                                x-model="planType"
+                                class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="bundle">Bundle</option>
+                            <option value="solo">Solo Channel</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Description</label>
+                    <textarea name="description" 
+                              id="editPlanDescription"
+                              rows="3"
+                              class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Price (USD) *</label>
+                        <input type="number" 
+                               name="price" 
+                               id="editPlanPrice"
+                               step="0.01"
+                               min="0"
+                               required
+                               class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    
+                    <div x-data="{ isLifetime: false }">
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Duration</label>
+                        
+                        <!-- Lifetime Toggle -->
+                        <div class="mb-3">
+                            <label class="flex items-center cursor-pointer">
+                                <input type="checkbox" 
+                                       name="is_lifetime"
+                                       id="editPlanIsLifetime"
+                                       x-model="isLifetime"
+                                       class="mr-2 text-yellow-600 focus:ring-yellow-500">
+                                <span class="text-sm font-medium text-yellow-400">Lifetime Plan</span>
+                            </label>
+                        </div>
+                        
+                        <!-- Duration Days Input -->
+                        <div x-show="!isLifetime">
+                            <input type="number" 
+                                   name="duration_days" 
+                                   id="editPlanDurationDays"
+                                   min="1"
+                                   :required="!isLifetime"
+                                   class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        
+                        <!-- Lifetime Notice -->
+                        <div x-show="isLifetime" class="bg-yellow-900 border border-yellow-700 rounded-lg p-3">
+                            <div class="flex items-center text-yellow-100">
+                                <i data-feather="star" class="w-4 h-4 mr-2"></i>
+                                <span class="text-sm font-medium">Lifetime Access Plan</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div x-show="planType === 'bundle'">
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Folder Link (Optional)</label>
+                    <input type="url" 
+                           name="folder_link"
+                           id="editPlanFolderLink"
+                           class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Channels *</label>
+                    <div class="max-h-48 overflow-y-auto bg-gray-900 border border-gray-600 rounded-lg p-3" id="editChannelsList">
+                        {% for channel in channels %}
+                        <label class="flex items-center py-2 hover:bg-gray-800 rounded px-2">
+                            <input type="checkbox" 
+                                   name="channels" 
+                                   value="{{ channel.id }}"
+                                   id="editChannel{{ channel.id }}"
+                                   class="mr-3 text-blue-600 focus:ring-blue-500">
+                            <div class="flex-1">
+                                <div class="font-medium">{{ channel.name }}</div>
+                                {% if channel.description %}
+                                <div class="text-xs text-gray-400">{{ channel.description[:50] }}{% if channel.description|length > 50 %}...{% endif %}</div>
+                                {% endif %}
+                            </div>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <div class="flex gap-3 pt-4">
+                    <button type="submit" 
+                            class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors">
+                        Update Plan
+                    </button>
+                    <button type="button" 
+                            onclick="document.getElementById('editPlanModal').close()"
+                            class="flex-1 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
     <script>
         feather.replace();
+        
+        function openEditPlanModal(planId, name, description, planType, price, durationDays, isLifetime, folderLink, channelIds) {
+            // Set form action
+            document.getElementById('editPlanForm').action = `/admin/plan/${planId}/edit`;
+            
+            // Fill form fields
+            document.getElementById('editPlanName').value = name;
+            document.getElementById('editPlanDescription').value = description;
+            document.getElementById('editPlanType').value = planType;
+            document.getElementById('editPlanPrice').value = price;
+            document.getElementById('editPlanDurationDays').value = durationDays;
+            document.getElementById('editPlanIsLifetime').checked = isLifetime;
+            document.getElementById('editPlanFolderLink').value = folderLink;
+            
+            // Clear all channel checkboxes first
+            const channelCheckboxes = document.querySelectorAll('#editChannelsList input[type="checkbox"]');
+            channelCheckboxes.forEach(cb => cb.checked = false);
+            
+            // Check selected channels
+            channelIds.forEach(id => {
+                const checkbox = document.getElementById(`editChannel${id}`);
+                if (checkbox) checkbox.checked = true;
+            });
+            
+            // Show modal
+            document.getElementById('editPlanModal').showModal();
+        }
         
         // Auto-hide flash messages
         setTimeout(() => {

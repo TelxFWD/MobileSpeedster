@@ -153,11 +153,20 @@ def create_plan():
     plan_type = request.form.get('plan_type')
     price = request.form.get('price', type=float)
     duration_days = request.form.get('duration_days', type=int)
+    is_lifetime = request.form.get('is_lifetime') == 'on'
     folder_link = request.form.get('folder_link', '').strip()
     channel_ids = request.form.getlist('channels')
     
-    if not all([name, plan_type, price, duration_days]):
+    # Validation
+    if not all([name, plan_type, price]):
         flash('Please fill in all required fields', 'error')
+        return redirect(url_for('admin_plans'))
+    
+    # For lifetime plans, duration_days should be 0 or very high number
+    if is_lifetime:
+        duration_days = 36500  # 100 years as "lifetime"
+    elif not duration_days or duration_days <= 0:
+        flash('Please specify duration for non-lifetime plans', 'error')
         return redirect(url_for('admin_plans'))
     
     # Create plan
@@ -167,6 +176,7 @@ def create_plan():
         plan_type=plan_type,
         price=price,
         duration_days=duration_days,
+        is_lifetime=is_lifetime,
         folder_link=folder_link if plan_type == 'bundle' else None
     )
     db.session.add(plan)
@@ -178,7 +188,9 @@ def create_plan():
         db.session.add(plan_channel)
     
     db.session.commit()
-    flash('Plan created successfully!', 'success')
+    
+    plan_type_text = "Lifetime" if is_lifetime else "Regular"
+    flash(f'{plan_type_text} plan created successfully!', 'success')
     return redirect(url_for('admin_plans'))
 
 @app.route('/admin/plan/<int:plan_id>/toggle', methods=['POST'])
@@ -466,6 +478,54 @@ def delete_channel(channel_id):
     
     flash(f'Channel {name} has been deleted', 'success')
     return redirect(url_for('admin_channels'))
+
+@app.route('/admin/plan/<int:plan_id>/edit', methods=['POST'])
+@admin_required
+def edit_plan(plan_id):
+    """Edit an existing plan"""
+    plan = Plan.query.get_or_404(plan_id)
+    
+    name = request.form.get('name', '').strip()
+    description = request.form.get('description', '').strip()
+    plan_type = request.form.get('plan_type')
+    price = request.form.get('price', type=float)
+    duration_days = request.form.get('duration_days', type=int)
+    is_lifetime = request.form.get('is_lifetime') == 'on'
+    folder_link = request.form.get('folder_link', '').strip()
+    channel_ids = request.form.getlist('channels')
+    
+    # Validation
+    if not all([name, plan_type, price]):
+        flash('Please fill in all required fields', 'error')
+        return redirect(url_for('admin_plans'))
+    
+    # For lifetime plans, duration_days should be 0 or very high number
+    if is_lifetime:
+        duration_days = 36500  # 100 years as "lifetime"
+    elif not duration_days or duration_days <= 0:
+        flash('Please specify duration for non-lifetime plans', 'error')
+        return redirect(url_for('admin_plans'))
+    
+    # Update plan
+    plan.name = name
+    plan.description = description
+    plan.plan_type = plan_type
+    plan.price = price
+    plan.duration_days = duration_days
+    plan.is_lifetime = is_lifetime
+    plan.folder_link = folder_link if plan_type == 'bundle' else None
+    
+    # Update plan channels
+    PlanChannel.query.filter_by(plan_id=plan_id).delete()
+    for channel_id in channel_ids:
+        plan_channel = PlanChannel(plan_id=plan.id, channel_id=int(channel_id))
+        db.session.add(plan_channel)
+    
+    db.session.commit()
+    
+    plan_type_text = "Lifetime" if is_lifetime else "Regular"
+    flash(f'{plan_type_text} plan updated successfully!', 'success')
+    return redirect(url_for('admin_plans'))
 
 @app.route('/admin/plan/<int:plan_id>/delete', methods=['POST'])
 @admin_required
