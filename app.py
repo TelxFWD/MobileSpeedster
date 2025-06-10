@@ -1,5 +1,6 @@
 import os
 import logging
+import threading
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
@@ -15,7 +16,7 @@ db = SQLAlchemy(model_class=Base)
 
 # Create the app
 app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET") or os.urandom(24)
+app.secret_key = os.environ.get("SESSION_SECRET")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 # Configure the database
@@ -47,18 +48,16 @@ with app.app_context():
         db.session.commit()
         logging.info("Default admin user created: admin/admin123")
 
-# Import routes
+# Import routes at module level
 from routes import *
 from admin_routes import *
 from payment_handler import *
 
 # Start bot service
-from bot_service import run_bot_service
-import threading
-
 def start_bot_background():
     """Start bot service in background"""
     try:
+        from bot_service import run_bot_service
         run_bot_service()
     except Exception as e:
         logging.error(f"Failed to start bot service: {e}")
