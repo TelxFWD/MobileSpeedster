@@ -33,8 +33,8 @@ def channels():
 @app.route('/customize-bundle')
 def customize_bundle():
     """Custom bundle creation page"""
-    # Get all active channels
-    channels = Channel.query.filter_by(is_active=True).all()
+    # Get all active channels that are enabled for custom bundle
+    channels = Channel.query.filter_by(is_active=True, show_in_custom_bundle=True).all()
     return render_template('customize_bundle.html', channels=channels)
 
 @app.route('/checkout/custom-bundle', methods=['POST'])

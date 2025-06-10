@@ -53,6 +53,7 @@ class Channel(db.Model):
     # For solo channels
     solo_price = db.Column(db.Float)
     solo_duration_days = db.Column(db.Integer)
+    show_in_custom_bundle = db.Column(db.Boolean, default=True)
     
     # Relationships
     plan_channels = db.relationship('PlanChannel', backref='channel', lazy=True, cascade='all, delete-orphan')
@@ -64,6 +65,7 @@ class Plan(db.Model):
     plan_type = db.Column(db.String(16), nullable=False)  # 'solo' or 'bundle'
     price = db.Column(db.Float, nullable=False)
     duration_days = db.Column(db.Integer, nullable=False)
+    is_lifetime = db.Column(db.Boolean, default=False)
     folder_link = db.Column(db.String(256))  # For bundles
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
