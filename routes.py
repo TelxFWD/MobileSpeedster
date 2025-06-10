@@ -23,12 +23,22 @@ def bundles():
 
 @app.route('/channels')
 def channels():
-    solo_plans = Plan.query.filter_by(plan_type='solo', is_active=True).all()
+    # Get solo plans with finite duration (non-lifetime)
+    solo_plans = Plan.query.filter_by(plan_type='solo', is_active=True, is_lifetime=False).all()
+    
+    # Get lifetime plans
+    lifetime_plans = Plan.query.filter_by(plan_type='solo', is_active=True, is_lifetime=True).all()
+    
+    # Get individual channels for the individual channels tab
     solo_channels = Channel.query.filter(
         Channel.is_active == True,
         Channel.solo_price.isnot(None)
     ).all()
-    return render_template('channels.html', plans=solo_plans, channels=solo_channels)
+    
+    return render_template('channels.html', 
+                         plans=solo_plans, 
+                         lifetime_plans=lifetime_plans,
+                         channels=solo_channels)
 
 @app.route('/customize-bundle')
 def customize_bundle():
