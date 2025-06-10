@@ -1,0 +1,194 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Enforcement Bot Status - Admin{% endblock %}
+
+{% block content %}
+<div class="bg-gray-900 min-h-screen">
+    <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-white">🤖 Enforcement Bot Status</h1>
+            <p class="text-gray-400 mt-2">Monitor the automatic enforcement bot and its activities</p>
+        </div>
+
+        <div class="grid lg:grid-cols-2 gap-8">
+            <!-- Bot Status -->
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <h2 class="text-xl font-bold text-white mb-6">Bot Status</h2>
+                
+                <div class="space-y-4">
+                    <!-- Running Status -->
+                    <div class="flex items-center justify-between">
+                        <span class="text-gray-300">Status:</span>
+                        {% if status.running %}
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-900 text-green-300">
+                            <span class="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
+                            Running
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-900 text-red-300">
+                            <span class="w-2 h-2 bg-red-400 rounded-full mr-2"></span>
+                            Stopped
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Mode -->
+                    <div class="flex items-center justify-between">
+                        <span class="text-gray-300">Mode:</span>
+                        {% if status.dry_run %}
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-900 text-yellow-300">
+                            Dry Run (Safe Testing)
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-900 text-blue-300">
+                            Live Mode
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Managed Channels -->
+                    <div class="flex items-center justify-between">
+                        <span class="text-gray-300">Managed Channels:</span>
+                        <span class="text-white font-mono">{{ status.managed_channels or 0 }} / {{ total_channels }}</span>
+                    </div>
+
+                    <!-- Whitelisted Users -->
+                    <div class="flex items-center justify-between">
+                        <span class="text-gray-300">Whitelisted Users:</span>
+                        <span class="text-white font-mono">{{ status.whitelisted_users or 0 }}</span>
+                    </div>
+
+                    <!-- Scan Interval -->
+                    <div class="flex items-center justify-between">
+                        <span class="text-gray-300">Scan Interval:</span>
+                        <span class="text-white">{{ (status.scan_interval or 300) // 60 }} minutes</span>
+                    </div>
+
+                    {% if status.error %}
+                    <div class="mt-4 p-4 bg-red-900/30 border border-red-600/50 rounded-lg">
+                        <h4 class="text-red-400 font-medium mb-2">Error:</h4>
+                        <p class="text-red-300 text-sm">{{ status.error }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 24h Statistics -->
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <h2 class="text-xl font-bold text-white mb-6">24h Statistics</h2>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-gray-700 rounded-lg p-4 text-center">
+                        <div class="text-2xl font-bold text-blue-400">{{ stats.total_actions_24h }}</div>
+                        <div class="text-sm text-gray-300">Total Actions</div>
+                    </div>
+                    
+                    <div class="bg-gray-700 rounded-lg p-4 text-center">
+                        <div class="text-2xl font-bold text-red-400">{{ stats.bans_24h }}</div>
+                        <div class="text-sm text-gray-300">Bans</div>
+                    </div>
+                    
+                    <div class="bg-gray-700 rounded-lg p-4 text-center">
+                        <div class="text-2xl font-bold text-green-400">{{ stats.unbans_24h }}</div>
+                        <div class="text-sm text-gray-300">Unbans</div>
+                    </div>
+                    
+                    <div class="bg-gray-700 rounded-lg p-4 text-center">
+                        <div class="text-2xl font-bold text-yellow-400">{{ stats.errors_24h }}</div>
+                        <div class="text-sm text-gray-300">Errors</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Configuration Info -->
+        <div class="mt-8 bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <h2 class="text-xl font-bold text-white mb-6">Configuration</h2>
+            
+            <div class="grid md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="text-lg font-medium text-white mb-3">Safety Features</h3>
+                    <ul class="space-y-2 text-sm text-gray-300">
+                        <li class="flex items-center">
+                            <span class="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
+                            Rate limiting: Max 20 actions/minute
+                        </li>
+                        <li class="flex items-center">
+                            <span class="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
+                            3-second delay between actions
+                        </li>
+                        <li class="flex items-center">
+                            <span class="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
+                            FloodWait error handling with backoff
+                        </li>
+                        <li class="flex items-center">
+                            <span class="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
+                            Whitelist protection for admin users
+                        </li>
+                        {% if status.dry_run %}
+                        <li class="flex items-center">
+                            <span class="w-2 h-2 bg-yellow-400 rounded-full mr-2"></span>
+                            Dry-run mode: No actual bans/unbans
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
+                
+                <div>
+                    <h3 class="text-lg font-medium text-white mb-3">Operation Schedule</h3>
+                    <ul class="space-y-2 text-sm text-gray-300">
+                        <li class="flex items-center">
+                            <span class="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+                            Scans every 5 minutes
+                        </li>
+                        <li class="flex items-center">
+                            <span class="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+                            Auto-sync channels from database
+                        </li>
+                        <li class="flex items-center">
+                            <span class="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+                            Checks subscription expiry automatically
+                        </li>
+                        <li class="flex items-center">
+                            <span class="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+                            Logs all actions to database
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Environment Variables Info -->
+        <div class="mt-8 bg-yellow-900/20 border border-yellow-600/50 rounded-lg p-6">
+            <h3 class="text-yellow-400 font-bold text-lg mb-3">Required Environment Variables</h3>
+            <p class="text-yellow-300 text-sm mb-4">
+                The enforcement bot requires the following Telegram API credentials to function:
+            </p>
+            <ul class="space-y-1 text-sm text-yellow-200">
+                <li><code class="bg-gray-800 px-2 py-1 rounded">TELEGRAM_API_ID</code> - Your Telegram API ID</li>
+                <li><code class="bg-gray-800 px-2 py-1 rounded">TELEGRAM_API_HASH</code> - Your Telegram API Hash</li>
+                <li><code class="bg-gray-800 px-2 py-1 rounded">TELEGRAM_BOT_TOKEN</code> - Your Bot Token</li>
+                <li><code class="bg-gray-800 px-2 py-1 rounded">TELEGRAM_PHONE</code> - Phone number for user bot</li>
+                <li><code class="bg-gray-800 px-2 py-1 rounded">BOT_MODE</code> - Set to "live" for production (defaults to "dry-run")</li>
+            </ul>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="mt-8 flex space-x-4">
+            <a href="{{ url_for('admin_bot_logs') }}" 
+               class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors">
+                View Bot Logs
+            </a>
+            <a href="{{ url_for('admin_user_ban_control') }}" 
+               class="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-medium transition-colors">
+                Manual Ban Control
+            </a>
+            <a href="{{ url_for('admin_manual_subscription') }}" 
+               class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors">
+                Manual Subscription
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

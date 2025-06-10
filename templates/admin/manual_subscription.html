@@ -1,0 +1,139 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Manual Subscription Assignment - Admin{% endblock %}
+
+{% block content %}
+<div class="bg-gray-900 min-h-screen">
+    <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-white">📋 Manual Subscription Assignment</h1>
+            <p class="text-gray-400 mt-2">Manually assign subscriptions to users by Telegram ID or username</p>
+        </div>
+
+        <div class="grid lg:grid-cols-3 gap-8">
+            <!-- Assignment Form -->
+            <div class="lg:col-span-2">
+                <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                    <h2 class="text-xl font-bold text-white mb-6">Assign Subscription</h2>
+                    
+                    <form method="POST" class="space-y-6">
+                        <!-- User Identifier -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">
+                                User (Telegram ID or Username)
+                            </label>
+                            <input type="text" 
+                                   name="user_identifier" 
+                                   placeholder="12345678 or @username"
+                                   class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                   required>
+                            <p class="text-xs text-gray-400 mt-1">Enter Telegram chat ID (numbers only) or username (with or without @)</p>
+                        </div>
+
+                        <!-- Plan Selection -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Select Plan</label>
+                            <select name="plan_id" 
+                                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    required>
+                                <option value="">Choose a plan...</option>
+                                {% for plan in plans %}
+                                <option value="{{ plan.id }}" data-price="{{ plan.price }}" data-duration="{{ plan.duration_days }}">
+                                    {{ plan.name }} - ${{ "%.2f"|format(plan.price) }} 
+                                    ({{ plan.duration_days }} days)
+                                    {% if plan.is_lifetime %}- LIFETIME{% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Subscription Type -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Subscription Type</label>
+                            <div class="space-y-2">
+                                <label class="flex items-center">
+                                    <input type="radio" name="subscription_type" value="regular" checked
+                                           class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-gray-300">Regular (plan duration)</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="radio" name="subscription_type" value="lifetime"
+                                           class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-gray-300">Lifetime (100 years)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Custom Duration -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">
+                                Custom Duration (days)
+                            </label>
+                            <input type="number" 
+                                   name="duration_days" 
+                                   value="30"
+                                   min="1"
+                                   max="36500"
+                                   class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <p class="text-xs text-gray-400 mt-1">Override plan duration (ignored for lifetime subscriptions)</p>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <button type="submit"
+                                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                            Assign Subscription
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Recent Users & Info -->
+            <div class="lg:col-span-1">
+                <!-- Quick Info -->
+                <div class="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
+                    <h3 class="text-lg font-bold text-white mb-4">Quick Info</h3>
+                    <div class="space-y-3 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Total Plans:</span>
+                            <span class="text-white">{{ plans|length }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Active Users:</span>
+                            <span class="text-white">{{ recent_users|length }}+</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Users -->
+                <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                    <h3 class="text-lg font-bold text-white mb-4">Recent Users</h3>
+                    <div class="space-y-2 max-h-96 overflow-y-auto">
+                        {% for user in recent_users %}
+                        <div class="bg-gray-700 rounded p-3 cursor-pointer hover:bg-gray-600 transition-colors"
+                             onclick="fillUserIdentifier('{{ user.telegram_username if user.telegram_username else user.telegram_chat_id }}')">
+                            <div class="font-medium text-white">
+                                {{ user.telegram_username or 'No username' }}
+                            </div>
+                            {% if user.telegram_chat_id %}
+                            <div class="text-xs text-gray-400">ID: {{ user.telegram_chat_id }}</div>
+                            {% endif %}
+                            <div class="text-xs text-gray-500">
+                                Joined: {{ user.created_at.strftime('%Y-%m-%d') }}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2">Click on a user to auto-fill the form</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function fillUserIdentifier(identifier) {
+    document.querySelector('input[name="user_identifier"]').value = identifier;
+}
+</script>
+{% endblock %}

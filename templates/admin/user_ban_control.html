@@ -1,0 +1,173 @@
+{% extends "admin/base.html" %}
+
+{% block title %}User Ban Control - Admin{% endblock %}
+
+{% block content %}
+<div class="bg-gray-900 min-h-screen">
+    <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-white">🔒 User Ban Control</h1>
+            <p class="text-gray-400 mt-2">Ban or unban users from all Telegram channels</p>
+        </div>
+
+        <div class="grid lg:grid-cols-3 gap-8">
+            <!-- Ban Control Form -->
+            <div class="lg:col-span-2">
+                <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                    <h2 class="text-xl font-bold text-white mb-6">Ban/Unban User</h2>
+                    
+                    <form method="POST" class="space-y-6">
+                        <!-- User Identifier -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">
+                                User (Telegram ID or Username)
+                            </label>
+                            <input type="text" 
+                                   name="user_identifier" 
+                                   placeholder="12345678 or @username"
+                                   class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                   required>
+                            <p class="text-xs text-gray-400 mt-1">Enter Telegram chat ID (numbers only) or username (with or without @)</p>
+                        </div>
+
+                        <!-- Action Selection -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Action</label>
+                            <div class="grid grid-cols-2 gap-4">
+                                <label class="flex items-center p-4 bg-red-900/30 border border-red-600/50 rounded-lg hover:bg-red-900/50 cursor-pointer">
+                                    <input type="radio" name="action" value="ban" required
+                                           class="w-4 h-4 text-red-600 bg-gray-700 border-gray-600 focus:ring-red-500">
+                                    <div class="ml-3">
+                                        <div class="text-red-400 font-medium">Ban User</div>
+                                        <div class="text-xs text-red-300">Remove from all channels</div>
+                                    </div>
+                                </label>
+                                
+                                <label class="flex items-center p-4 bg-green-900/30 border border-green-600/50 rounded-lg hover:bg-green-900/50 cursor-pointer">
+                                    <input type="radio" name="action" value="unban" required
+                                           class="w-4 h-4 text-green-600 bg-gray-700 border-gray-600 focus:ring-green-500">
+                                    <div class="ml-3">
+                                        <div class="text-green-400 font-medium">Unban User</div>
+                                        <div class="text-xs text-green-300">Restore access to channels</div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Reason -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">
+                                Reason
+                            </label>
+                            <textarea name="reason" 
+                                      placeholder="Enter reason for ban/unban action..."
+                                      rows="3"
+                                      class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <button type="submit"
+                                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                            Execute Action
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Recent Actions Log -->
+                {% if recent_logs %}
+                <div class="bg-gray-800 rounded-lg p-6 border border-gray-700 mt-6">
+                    <h3 class="text-xl font-bold text-white mb-4">Recent Actions</h3>
+                    <div class="space-y-3 max-h-96 overflow-y-auto">
+                        {% for log in recent_logs %}
+                        <div class="bg-gray-700 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="flex items-center">
+                                    {% if log.action_type == 'manual_ban' %}
+                                    <span class="w-3 h-3 bg-red-500 rounded-full mr-2"></span>
+                                    <span class="text-red-400 font-medium">BAN</span>
+                                    {% else %}
+                                    <span class="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
+                                    <span class="text-green-400 font-medium">UNBAN</span>
+                                    {% endif %}
+                                </div>
+                                <span class="text-xs text-gray-400">{{ log.timestamp.strftime('%Y-%m-%d %H:%M') }}</span>
+                            </div>
+                            <div class="text-white text-sm">
+                                User ID: <span class="font-mono">{{ log.user_id }}</span>
+                            </div>
+                            {% if log.reason %}
+                            <div class="text-gray-300 text-sm mt-1">{{ log.reason }}</div>
+                            {% endif %}
+                            <div class="text-xs text-gray-400 mt-1">
+                                Admin: {{ log.admin_user }}
+                                {% if log.dry_run %} (DRY RUN){% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Sidebar Info -->
+            <div class="lg:col-span-1">
+                <!-- Warning -->
+                <div class="bg-yellow-900/30 border border-yellow-600/50 rounded-lg p-4 mb-6">
+                    <h3 class="text-yellow-400 font-bold text-sm mb-2">⚠️ WARNING</h3>
+                    <p class="text-yellow-300 text-sm">
+                        This action affects ALL managed Telegram channels. 
+                        Banned users will lose access to all premium channels immediately.
+                    </p>
+                </div>
+
+                <!-- Quick Stats -->
+                <div class="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
+                    <h3 class="text-lg font-bold text-white mb-4">Quick Stats</h3>
+                    <div class="space-y-3 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Recent Actions:</span>
+                            <span class="text-white">{{ recent_logs|length }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Active Users:</span>
+                            <span class="text-white">{{ recent_users|length }}+</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Users -->
+                <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                    <h3 class="text-lg font-bold text-white mb-4">Recent Users</h3>
+                    <div class="space-y-2 max-h-80 overflow-y-auto">
+                        {% for user in recent_users %}
+                        <div class="bg-gray-700 rounded p-3 cursor-pointer hover:bg-gray-600 transition-colors"
+                             onclick="fillUserIdentifier('{{ user.telegram_username if user.telegram_username else user.telegram_chat_id }}')">
+                            <div class="font-medium text-white">
+                                {{ user.telegram_username or 'No username' }}
+                                {% if user.is_banned %}
+                                <span class="text-red-400 text-xs">(BANNED)</span>
+                                {% endif %}
+                            </div>
+                            {% if user.telegram_chat_id %}
+                            <div class="text-xs text-gray-400">ID: {{ user.telegram_chat_id }}</div>
+                            {% endif %}
+                            <div class="text-xs text-gray-500">
+                                Joined: {{ user.created_at.strftime('%Y-%m-%d') }}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2">Click on a user to auto-fill the form</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function fillUserIdentifier(identifier) {
+    document.querySelector('input[name="user_identifier"]').value = identifier;
+}
+</script>
+{% endblock %}

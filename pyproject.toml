@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.11"
 dependencies = [
+    "cryptg>=0.5.0.post0",
     "email-validator>=2.2.0",
     "flask>=3.1.1",
     "flask-sqlalchemy>=3.1.1",
@@ -12,5 +13,6 @@ dependencies = [
     "pytelegrambotapi>=4.27.0",
     "requests>=2.32.3",
     "sqlalchemy>=2.0.41",
+    "telethon>=1.40.0",
     "werkzeug>=3.1.3",
 ]

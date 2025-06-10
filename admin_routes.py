@@ -704,3 +704,244 @@ def admin_backup():
     except Exception as e:
         flash(f'Backup failed: {str(e)}', 'error')
         return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/manual-subscription', methods=['GET', 'POST'])
+@admin_required
+def admin_manual_subscription():
+    """Manual subscription assignment tool"""
+    from datetime import datetime, timedelta
+    import logging
+    
+    if request.method == 'POST':
+        try:
+            # Get form data
+            user_identifier = request.form.get('user_identifier', '').strip()
+            plan_id = request.form.get('plan_id')
+            subscription_type = request.form.get('subscription_type')
+            duration_days = int(request.form.get('duration_days', 30))
+            
+            # Find user by Telegram ID or username
+            user = None
+            if user_identifier.isdigit():
+                user = User.query.filter_by(telegram_chat_id=user_identifier).first()
+            else:
+                if user_identifier.startswith('@'):
+                    user_identifier = user_identifier[1:]
+                user = User.query.filter_by(telegram_username=user_identifier).first()
+            
+            if not user:
+                flash(f'User not found: {user_identifier}', 'error')
+                return redirect(url_for('admin_manual_subscription'))
+            
+            # Get plan
+            plan = Plan.query.get(plan_id)
+            if not plan:
+                flash('Selected plan not found', 'error')
+                return redirect(url_for('admin_manual_subscription'))
+            
+            # Create subscription
+            end_date = datetime.utcnow() + timedelta(days=duration_days)
+            if subscription_type == 'lifetime':
+                end_date = datetime.utcnow() + timedelta(days=36500)  # 100 years
+            
+            subscription = Subscription(
+                user_id=user.id,
+                plan_id=plan.id,
+                start_date=datetime.utcnow(),
+                end_date=end_date,
+                is_paid=True
+            )
+            
+            db.session.add(subscription)
+            db.session.commit()
+            
+            logging.info(f"Admin {session['admin_username']} manually assigned subscription: User {user.telegram_username} -> Plan {plan.name}")
+            flash(f'Successfully assigned {plan.name} to {user.telegram_username} for {duration_days} days', 'success')
+            
+        except Exception as e:
+            db.session.rollback()
+            logging.error(f"Manual subscription assignment failed: {e}")
+            flash(f'Error assigning subscription: {str(e)}', 'error')
+    
+    # Get all plans and users for form
+    plans = Plan.query.filter_by(is_active=True).all()
+    recent_users = User.query.filter_by(is_active=True).order_by(User.created_at.desc()).limit(20).all()
+    
+    return render_template('admin/manual_subscription.html', plans=plans, recent_users=recent_users)
+
+@app.route('/admin/user-ban-control', methods=['GET', 'POST'])
+@admin_required
+def admin_user_ban_control():
+    """User ban control page"""
+    import asyncio
+    import logging
+    
+    if request.method == 'POST':
+        action = request.form.get('action')
+        user_identifier = request.form.get('user_identifier', '').strip()
+        reason = request.form.get('reason', 'Admin action')
+        
+        try:
+            # Find user
+            user = None
+            if user_identifier.isdigit():
+                user_id = int(user_identifier)
+                user = User.query.filter_by(telegram_chat_id=user_identifier).first()
+            else:
+                if user_identifier.startswith('@'):
+                    user_identifier = user_identifier[1:]
+                user = User.query.filter_by(telegram_username=user_identifier).first()
+                if user and user.telegram_chat_id and user.telegram_chat_id.isdigit():
+                    user_id = int(user.telegram_chat_id)
+                else:
+                    flash('User Telegram ID not found', 'error')
+                    return redirect(url_for('admin_user_ban_control'))
+            
+            if not user:
+                flash(f'User not found: {user_identifier}', 'error')
+                return redirect(url_for('admin_user_ban_control'))
+            
+            # Execute ban/unban action
+            if action == 'ban':
+                # Update user status in database
+                user.is_banned = True
+                db.session.commit()
+                
+                # Try to execute Telegram bans
+                try:
+                    from enforcement_bot import admin_ban_user
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    result = loop.run_until_complete(admin_ban_user(user_id, reason))
+                    loop.close()
+                    
+                    if 'error' in result:
+                        flash(f'Database updated but Telegram ban failed: {result["error"]}', 'warning')
+                    else:
+                        successful = result.get('successful_bans', 0)
+                        total = result.get('total_channels', 0)
+                        flash(f'Banned user from {successful}/{total} channels', 'success')
+                        
+                except Exception as e:
+                    logging.error(f"Telegram ban failed: {e}")
+                    flash(f'User banned in database. Telegram ban failed: {str(e)}', 'warning')
+                
+                # Log action
+                log_entry = BotLog(
+                    action_type='manual_ban',
+                    user_id=user_id,
+                    reason=reason,
+                    admin_user=session['admin_username'],
+                    timestamp=datetime.utcnow()
+                )
+                db.session.add(log_entry)
+                db.session.commit()
+                
+            elif action == 'unban':
+                # Update user status in database
+                user.is_banned = False
+                db.session.commit()
+                
+                # Try to execute Telegram unbans
+                try:
+                    from enforcement_bot import admin_unban_user
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    result = loop.run_until_complete(admin_unban_user(user_id, reason))
+                    loop.close()
+                    
+                    if 'error' in result:
+                        flash(f'Database updated but Telegram unban failed: {result["error"]}', 'warning')
+                    else:
+                        successful = result.get('successful_unbans', 0)
+                        total = result.get('total_channels', 0)
+                        flash(f'Unbanned user from {successful}/{total} channels', 'success')
+                        
+                except Exception as e:
+                    logging.error(f"Telegram unban failed: {e}")
+                    flash(f'User unbanned in database. Telegram unban failed: {str(e)}', 'warning')
+                
+                # Log action
+                log_entry = BotLog(
+                    action_type='manual_unban',
+                    user_id=user_id,
+                    reason=reason,
+                    admin_user=session['admin_username'],
+                    timestamp=datetime.utcnow()
+                )
+                db.session.add(log_entry)
+                db.session.commit()
+            
+        except Exception as e:
+            db.session.rollback()
+            logging.error(f"Ban control action failed: {e}")
+            flash(f'Action failed: {str(e)}', 'error')
+    
+    # Get recent bot logs
+    recent_logs = BotLog.query.filter(
+        BotLog.action_type.in_(['manual_ban', 'manual_unban'])
+    ).order_by(BotLog.timestamp.desc()).limit(20).all()
+    
+    # Get recent users
+    recent_users = User.query.filter_by(is_active=True).order_by(User.created_at.desc()).limit(20).all()
+    
+    return render_template('admin/user_ban_control.html', recent_logs=recent_logs, recent_users=recent_users)
+
+@app.route('/admin/bot-logs')
+@admin_required
+def admin_bot_logs():
+    """View bot action logs"""
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    
+    logs = BotLog.query.order_by(BotLog.timestamp.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    
+    return render_template('admin/bot_logs.html', logs=logs)
+
+@app.route('/admin/enforcement-status')
+@admin_required
+def admin_enforcement_status():
+    """Check enforcement bot status"""
+    import asyncio
+    
+    try:
+        from enforcement_bot import get_enforcement_bot
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        bot = loop.run_until_complete(get_enforcement_bot())
+        loop.close()
+        
+        if bot:
+            status = {
+                'running': bot.running,
+                'dry_run': bot.dry_run,
+                'managed_channels': len(bot.managed_channels),
+                'whitelisted_users': len(bot.whitelisted_users),
+                'scan_interval': bot.scan_interval
+            }
+        else:
+            status = {'running': False, 'error': 'Bot not initialized'}
+            
+    except Exception as e:
+        status = {'running': False, 'error': str(e)}
+    
+    # Get recent statistics
+    from datetime import timedelta
+    
+    recent_logs = BotLog.query.filter(
+        BotLog.timestamp >= datetime.utcnow() - timedelta(hours=24)
+    ).all()
+    
+    stats = {
+        'total_actions_24h': len(recent_logs),
+        'bans_24h': len([l for l in recent_logs if 'ban' in l.action_type and l.success]),
+        'unbans_24h': len([l for l in recent_logs if 'unban' in l.action_type and l.success]),
+        'errors_24h': len([l for l in recent_logs if not l.success])
+    }
+    
+    total_channels = Channel.query.filter_by(is_active=True).count()
+    
+    return render_template('admin/enforcement_status.html', status=status, stats=stats, total_channels=total_channels)
