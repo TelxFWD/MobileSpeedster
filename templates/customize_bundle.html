@@ -82,6 +82,15 @@
                                 {% if channel.description %}
                                 <p class="text-gray-300 text-sm">{{ channel.description }}</p>
                                 {% endif %}
+                                {% if channel.telegram_link %}
+                                <div class="mt-2">
+                                    <a href="{{ channel.telegram_link }}" target="_blank" 
+                                       class="text-blue-400 hover:text-blue-300 text-sm inline-flex items-center">
+                                        <i data-feather="external-link" class="w-4 h-4 mr-1"></i>
+                                        Preview Channel
+                                    </a>
+                                </div>
+                                {% endif %}
                             </div>
                         </label>
                     </div>
