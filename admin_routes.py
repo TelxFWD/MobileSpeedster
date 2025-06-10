@@ -945,3 +945,137 @@ def admin_enforcement_status():
     total_channels = Channel.query.filter_by(is_active=True).count()
     
     return render_template('admin/enforcement_status.html', status=status, stats=stats, total_channels=total_channels)
+
+
+@app.route('/admin/bot-setup', methods=['GET', 'POST'])
+@admin_required
+def admin_bot_setup():
+    """Setup Telegram API credentials for enforcement bot"""
+    if request.method == 'POST':
+        try:
+            action = request.form.get('action')
+            
+            if action == 'submit_credentials':
+                # Store credentials temporarily in session for OTP verification
+                session['temp_bot_config'] = {
+                    'api_id': request.form.get('api_id'),
+                    'api_hash': request.form.get('api_hash'),
+                    'bot_token': request.form.get('bot_token'),
+                    'phone': request.form.get('phone'),
+                    'mode': request.form.get('mode', 'dry-run')
+                }
+                
+                # Initiate OTP verification
+                from enforcement_bot import initiate_telegram_auth
+                result = initiate_telegram_auth(
+                    session['temp_bot_config']['api_id'],
+                    session['temp_bot_config']['api_hash'],
+                    session['temp_bot_config']['phone']
+                )
+                
+                if result['success']:
+                    session['otp_required'] = True
+                    session['phone_code_hash'] = result.get('phone_code_hash')
+                    flash('OTP sent to your phone. Please enter the verification code.', 'success')
+                else:
+                    flash(f'Failed to send OTP: {result["error"]}', 'error')
+                    
+            elif action == 'verify_otp':
+                if not session.get('otp_required'):
+                    flash('No OTP verification in progress', 'error')
+                    return redirect(url_for('admin_bot_setup'))
+                
+                otp_code = request.form.get('otp_code')
+                temp_config = session.get('temp_bot_config')
+                phone_code_hash = session.get('phone_code_hash')
+                
+                if not all([otp_code, temp_config, phone_code_hash]):
+                    flash('Invalid verification attempt', 'error')
+                    return redirect(url_for('admin_bot_setup'))
+                
+                # Verify OTP and complete setup
+                from enforcement_bot import complete_telegram_auth
+                result = complete_telegram_auth(
+                    temp_config['api_id'],
+                    temp_config['api_hash'],
+                    temp_config['phone'],
+                    otp_code,
+                    phone_code_hash
+                )
+                
+                if result['success']:
+                    # Save credentials to environment/database
+                    import os
+                    os.environ['TELEGRAM_API_ID'] = temp_config['api_id']
+                    os.environ['TELEGRAM_API_HASH'] = temp_config['api_hash']
+                    os.environ['TELEGRAM_BOT_TOKEN'] = temp_config['bot_token']
+                    os.environ['TELEGRAM_PHONE'] = temp_config['phone']
+                    os.environ['BOT_MODE'] = temp_config['mode']
+                    
+                    # Save to database for persistence
+                    bot_settings = BotSettings.query.first()
+                    if not bot_settings:
+                        bot_settings = BotSettings()
+                        db.session.add(bot_settings)
+                    
+                    bot_settings.bot_token = temp_config['bot_token']
+                    db.session.commit()
+                    
+                    # Clear session data
+                    session.pop('temp_bot_config', None)
+                    session.pop('otp_required', None)
+                    session.pop('phone_code_hash', None)
+                    
+                    # Log the action
+                    log_entry = BotLog(
+                        action_type='bot_setup',
+                        reason='Bot credentials configured successfully',
+                        success=True,
+                        admin_user=session.get('admin_username')
+                    )
+                    db.session.add(log_entry)
+                    db.session.commit()
+                    
+                    flash('Bot credentials configured successfully! The enforcement bot will restart automatically.', 'success')
+                    
+                    # Restart enforcement bot with new credentials
+                    from enforcement_bot import restart_enforcement_bot
+                    restart_enforcement_bot()
+                    
+                else:
+                    flash(f'OTP verification failed: {result["error"]}', 'error')
+                    
+            elif action == 'restart_bot':
+                # Restart the enforcement bot
+                from enforcement_bot import restart_enforcement_bot
+                result = restart_enforcement_bot()
+                
+                if result['success']:
+                    flash('Enforcement bot restarted successfully', 'success')
+                else:
+                    flash(f'Failed to restart bot: {result["error"]}', 'error')
+                    
+        except Exception as e:
+            flash(f'Error during bot setup: {str(e)}', 'error')
+            logging.error(f"Bot setup error: {e}")
+        
+        return redirect(url_for('admin_bot_setup'))
+    
+    # GET request - show setup form
+    otp_required = session.get('otp_required', False)
+    temp_config = session.get('temp_bot_config', {})
+    
+    # Check current bot status
+    import os
+    current_config = {
+        'api_id': os.environ.get('TELEGRAM_API_ID'),
+        'api_hash': bool(os.environ.get('TELEGRAM_API_HASH')),
+        'bot_token': bool(os.environ.get('TELEGRAM_BOT_TOKEN')),
+        'phone': os.environ.get('TELEGRAM_PHONE'),
+        'mode': os.environ.get('BOT_MODE', 'dry-run')
+    }
+    
+    return render_template('admin/bot_setup.html', 
+                         otp_required=otp_required,
+                         temp_config=temp_config,
+                         current_config=current_config)

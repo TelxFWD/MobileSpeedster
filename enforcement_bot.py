@@ -533,3 +533,116 @@ async def admin_unban_user(user_id: int, reason: str = "Admin action") -> Dict:
         return await bot.manual_unban_user(user_id, reason)
     else:
         return {'error': 'Enforcement bot not available'}
+
+
+def initiate_telegram_auth(api_id: str, api_hash: str, phone: str) -> Dict:
+    """Initiate Telegram authentication and send OTP"""
+    try:
+        from telethon import TelegramClient
+        import asyncio
+        
+        async def send_code():
+            client = TelegramClient('temp_session', int(api_id), api_hash)
+            await client.connect()
+            
+            if not await client.is_user_authorized():
+                result = await client.send_code_request(phone)
+                await client.disconnect()
+                return {
+                    'success': True,
+                    'phone_code_hash': result.phone_code_hash
+                }
+            else:
+                await client.disconnect()
+                return {
+                    'success': True,
+                    'phone_code_hash': 'already_authorized'
+                }
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(send_code())
+        loop.close()
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Failed to initiate Telegram auth: {e}")
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+
+def complete_telegram_auth(api_id: str, api_hash: str, phone: str, code: str, phone_code_hash: str) -> Dict:
+    """Complete Telegram authentication with OTP code"""
+    try:
+        from telethon import TelegramClient
+        import asyncio
+        
+        async def verify_code():
+            client = TelegramClient('temp_session', int(api_id), api_hash)
+            await client.connect()
+            
+            if phone_code_hash == 'already_authorized':
+                await client.disconnect()
+                return {'success': True}
+            
+            try:
+                await client.sign_in(phone, code, phone_code_hash=phone_code_hash)
+                await client.disconnect()
+                return {'success': True}
+            except Exception as e:
+                await client.disconnect()
+                return {
+                    'success': False,
+                    'error': str(e)
+                }
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(verify_code())
+        loop.close()
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Failed to complete Telegram auth: {e}")
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+
+def restart_enforcement_bot() -> Dict:
+    """Restart the enforcement bot with new credentials"""
+    try:
+        global enforcement_bot
+        
+        # Stop existing bot if running
+        if enforcement_bot:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(enforcement_bot.stop())
+            loop.close()
+            enforcement_bot = None
+        
+        # Start new bot instance
+        import threading
+        def start_new_bot():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(start_enforcement_bot())
+            
+        bot_thread = threading.Thread(target=start_new_bot, daemon=True)
+        bot_thread.start()
+        
+        logger.info("Enforcement bot restarted successfully")
+        return {'success': True}
+        
+    except Exception as e:
+        logger.error(f"Failed to restart enforcement bot: {e}")
+        return {
+            'success': False,
+            'error': str(e)
+        }
