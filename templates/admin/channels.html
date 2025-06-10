@@ -173,7 +173,7 @@
                                 {% if channel.is_active %}Disable{% else %}Enable{% endif %}
                             </button>
                         </form>
-                        <button onclick="editChannel({{ channel.id }}, '{{ channel.name }}', '{{ channel.description or '' }}', '{{ channel.telegram_link }}', {{ channel.solo_price or 'null' }}, {{ channel.solo_duration_days or 30 }}, {{ channel.show_in_custom_bundle|lower }})" 
+                        <button onclick="editChannel({{ channel.id }}, '{{ channel.name|replace("'", "\\'") }}', '{{ (channel.description or '')|replace("'", "\\'") }}', '{{ channel.telegram_link }}', {{ channel.solo_price or 'null' }}, {{ channel.solo_duration_days or 30 }}, {{ channel.show_in_custom_bundle|lower }})" 
                                 class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-semibold transition-colors">
                             Edit
                         </button>
