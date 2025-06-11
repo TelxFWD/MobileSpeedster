@@ -1224,6 +1224,30 @@ def check_single_channel_access(channel_id):
             'error': str(e)
         })
 
+@app.route('/admin/channel/<int:channel_id>/check-access', methods=['POST'])
+@admin_required
+def check_single_channel_access_post(channel_id):
+    """Check access for a single channel via POST"""
+    try:
+        channel = Channel.query.get_or_404(channel_id)
+        
+        if not channel.telegram_channel_id:
+            return jsonify({
+                'success': False,
+                'error': 'No channel ID configured'
+            })
+        
+        from enforcement_bot import check_bot_channel_access
+        result = check_bot_channel_access(channel.telegram_channel_id)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
 @app.route('/admin/enforcement-settings', methods=['GET', 'POST'])
 @admin_required
 def admin_enforcement_settings():

@@ -353,6 +353,16 @@
                            class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500">
                 </div>
                 
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Channel ID (For Bot Management)</label>
+                    <input type="text" 
+                           name="telegram_channel_id" 
+                           id="editTelegramChannelId"
+                           class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+                           placeholder="@channelname or -1001234567890">
+                    <p class="text-xs text-gray-400 mt-1">Required for bot to manage user access. Use @username or numeric ID (-100...)</p>
+                </div>
+                
                 <div class="border-t border-gray-700 pt-4">
                     <h3 class="text-lg font-semibold mb-3">Solo Channel Pricing</h3>
                     
@@ -406,15 +416,40 @@
     <script>
         feather.replace();
         
-        function editChannel(id, name, description, telegramLink, soloPrice, soloDays, showInBundle) {
+        function editChannel(id, name, description, telegramLink, telegramChannelId, soloPrice, soloDays, showInBundle) {
             document.getElementById('editChannelForm').action = `/admin/channel/${id}/edit`;
             document.getElementById('editName').value = name;
             document.getElementById('editDescription').value = description;
             document.getElementById('editTelegramLink').value = telegramLink;
+            document.getElementById('editTelegramChannelId').value = telegramChannelId || '';
             document.getElementById('editSoloPrice').value = soloPrice || '';
             document.getElementById('editSoloDays').value = soloDays || 30;
             document.getElementById('editShowInBundle').checked = showInBundle;
             document.getElementById('editChannelModal').showModal();
+        }
+        
+        async function checkChannelAccess(channelId, channelDbId) {
+            try {
+                const response = await fetch(`/admin/channel/${channelDbId}/check-access`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    if (result.has_access) {
+                        alert(`✓ Bot has admin access to channel ${channelId}`);
+                    } else {
+                        alert(`⚠️ Bot does not have admin access to channel ${channelId}. Please add the bot as admin.`);
+                    }
+                } else {
+                    alert(`Error checking access: ${result.error}`);
+                }
+            } catch (error) {
+                alert(`Error checking channel access: ${error.message}`);
+            }
         }
         
         // Auto-hide flash messages
