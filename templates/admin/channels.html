@@ -153,6 +153,25 @@
                         </a>
                     </div>
                     
+                    <!-- Channel ID -->
+                    {% if channel.telegram_channel_id %}
+                    <div class="mb-4">
+                        <div class="text-xs text-gray-400 mb-1">Channel ID:</div>
+                        <div class="flex items-center gap-2">
+                            <code class="text-green-400 text-sm bg-gray-900 px-2 py-1 rounded">{{ channel.telegram_channel_id }}</code>
+                            <button onclick="checkChannelAccess('{{ channel.telegram_channel_id }}', {{ channel.id }})" 
+                                    class="text-blue-400 hover:text-blue-300 text-xs">
+                                <i data-feather="check-circle" class="w-3 h-3"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="mb-4">
+                        <div class="text-xs text-gray-400 mb-1">Channel ID:</div>
+                        <span class="text-yellow-400 text-sm">Not configured</span>
+                    </div>
+                    {% endif %}
+                    
                     <!-- Usage Stats -->
                     <div class="mb-4 text-sm">
                         <div class="flex justify-between">
@@ -173,7 +192,7 @@
                                 {% if channel.is_active %}Disable{% else %}Enable{% endif %}
                             </button>
                         </form>
-                        <button onclick="editChannel({{ channel.id }}, '{{ channel.name|replace("'", "\\'") }}', '{{ (channel.description or '')|replace("'", "\\'") }}', '{{ channel.telegram_link }}', {{ channel.solo_price or 'null' }}, {{ channel.solo_duration_days or 30 }}, {{ channel.show_in_custom_bundle|lower }})" 
+                        <button onclick="editChannel({{ channel.id }}, '{{ channel.name|replace("'", "\\'") }}', '{{ (channel.description or '')|replace("'", "\\'") }}', '{{ channel.telegram_link }}', '{{ (channel.telegram_channel_id or '')|replace("'", "\\'") }}', {{ channel.solo_price or 'null' }}, {{ channel.solo_duration_days or 30 }}, {{ channel.show_in_custom_bundle|lower }})" 
                                 class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-semibold transition-colors">
                             Edit
                         </button>
@@ -234,6 +253,15 @@
                            class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
                            placeholder="https://t.me/your_channel">
                     <p class="text-xs text-gray-400 mt-1">Full Telegram channel URL</p>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Channel ID (For Bot Management)</label>
+                    <input type="text" 
+                           name="telegram_channel_id" 
+                           class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+                           placeholder="@channelname or -1001234567890">
+                    <p class="text-xs text-gray-400 mt-1">Required for bot to manage user access. Use @username or numeric ID (-100...)</p>
                 </div>
                 
                 <div class="border-t border-gray-700 pt-4">
