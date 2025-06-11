@@ -551,19 +551,44 @@ class EnforcementBot:
                     
                     # Validate channel ID format
                     if not channel_id.startswith('@') and not channel_id.startswith('-100'):
-                        logger.warning(f"Invalid channel ID format: {channel_id} - skipping")
+                        logger.warning(f"Invalid channel ID format: {channel_id}. Expected format: @username or -100xxxxxxxxx")
                         total_errors += 1
                         continue
+                    
+                    # Additional validation for numeric IDs
+                    if channel_id.startswith('-100'):
+                        try:
+                            # Ensure it's a valid numeric ID after -100
+                            int(channel_id[4:])  # Check if the part after -100 is numeric
+                            if len(channel_id) < 14:  # Channel IDs are typically longer
+                                logger.warning(f"Channel ID {channel_id} appears too short, may be invalid")
+                        except ValueError:
+                            logger.warning(f"Invalid numeric channel ID format: {channel_id}")
+                            total_errors += 1
+                            continue
                     
                     # Try to get channel entity with better error handling
                     try:
                         channel_entity = await self.client.get_entity(channel_id)
                         logger.debug(f"Successfully found channel: {channel_entity.title}")
+                    except errors.UsernameNotOccupiedError:
+                        logger.error(f"Channel username {channel_id} does not exist or is invalid")
+                        total_errors += 1
+                        continue
+                    except errors.ChannelPrivateError:
+                        logger.error(f"Channel {channel_id} is private or bot is not a member")
+                        total_errors += 1
+                        continue
+                    except ValueError as ve:
+                        if "Cannot find any entity" in str(ve):
+                            logger.error(f"Invalid channel ID format: {channel_id}. Use format: @username or -100xxxxxxxxx")
+                        else:
+                            logger.error(f"Channel validation error for {channel_id}: {ve}")
+                        total_errors += 1
+                        continue
                     except Exception as entity_error:
-                        logger.error(f"Cannot find channel {channel_id}: {entity_error}")
-                        # Try to remove invalid channel from managed list
-                        if "Cannot find any entity" in str(entity_error):
-                            logger.warning(f"Removing invalid channel {channel_id} from enforcement list")
+                        logger.error(f"Cannot access channel {channel_id}: {entity_error}")
+                        logger.warning(f"Bot may need to be added to channel {channel_id} as admin")
                         total_errors += 1
                         continue
                     
