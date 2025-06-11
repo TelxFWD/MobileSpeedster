@@ -188,23 +188,351 @@
     </div>
 </section>
 
-<script>
-// PIN input formatting
-document.getElementById('pin').addEventListener('input', function(e) {
-    // Only allow numbers
-    this.value = this.value.replace(/[^0-9]/g, '');
-    
-    // Limit to 4 digits
-    if (this.value.length > 4) {
-        this.value = this.value.slice(0, 4);
+<style>
+/* Onboarding Animations */
+@keyframes pulse-glow {
+    0%, 100% { 
+        box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+        transform: scale(1);
     }
+    50% { 
+        box-shadow: 0 0 30px rgba(59, 130, 246, 0.6);
+        transform: scale(1.05);
+    }
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    33% { transform: translateY(-20px) rotate(120deg); }
+    66% { transform: translateY(10px) rotate(240deg); }
+}
+
+@keyframes slide-in-from-top {
+    from {
+        opacity: 0;
+        transform: translateY(-50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slide-in-from-bottom {
+    from {
+        opacity: 0;
+        transform: translateY(50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slide-in-left {
+    from {
+        opacity: 0;
+        transform: translateX(-50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes slide-in-right {
+    from {
+        opacity: 0;
+        transform: translateX(50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes bounce-in {
+    0% {
+        opacity: 0;
+        transform: scale(0.3);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.1);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Floating Background Signals */
+.floating-signals {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    opacity: 0.1;
+    background: linear-gradient(45deg, #3b82f6, #8b5cf6);
+    border-radius: 50%;
+    animation: float 6s ease-in-out infinite;
+}
+
+.floating-signals:nth-child(1) {
+    top: 20%;
+    left: 10%;
+    animation-delay: 0s;
+}
+
+.floating-signals:nth-child(2) {
+    top: 60%;
+    right: 10%;
+    animation-delay: 2s;
+}
+
+.floating-signals:nth-child(3) {
+    bottom: 20%;
+    left: 20%;
+    animation-delay: 4s;
+}
+
+.delay-1 {
+    animation-delay: 1s !important;
+}
+
+.delay-2 {
+    animation-delay: 2s !important;
+}
+
+/* Signal Icon Animation */
+.signal-icon {
+    animation: pulse-glow 3s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+    animation: pulse-glow 3s ease-in-out infinite;
+}
+
+/* PIN Dots Animation */
+.pin-dot {
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.pin-dot.filled {
+    background-color: #8b5cf6;
+    border-color: #8b5cf6;
+    transform: scale(1.2);
+}
+
+/* Form Animations */
+.welcome-header {
+    animation: slide-in-from-top 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.login-form {
+    animation: slide-in-from-bottom 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) 0.2s both;
+}
+
+.input-group {
+    transition: all 0.3s ease;
+}
+
+.input-group:hover {
+    transform: translateY(-2px);
+}
+
+/* Submit Button Animations */
+.submit-btn {
+    position: relative;
+    overflow: hidden;
+}
+
+.submit-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    transition: left 0.5s;
+}
+
+.submit-btn:hover::before {
+    left: 100%;
+}
+
+/* Alpine.js Transition Classes */
+[x-cloak] { display: none !important; }
+
+.slide-in-from-top {
+    animation: slide-in-from-top 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.slide-in-from-bottom {
+    animation: slide-in-from-bottom 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.slide-in-left {
+    animation: slide-in-left 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.slide-in-right {
+    animation: slide-in-right 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.fade-in {
+    animation: fade-in 0.3s ease-in;
+}
+
+/* Success Animation */
+.success-bounce {
+    animation: bounce-in 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* Typing Animation */
+.typing-glow {
+    box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+}
+</style>
+
+<script>
+function onboardingFlow() {
+    return {
+        showWelcomeAnimation(mode) {
+            // Trigger welcome animation when mode changes
+            const header = document.querySelector('.welcome-header');
+            header.style.animation = 'none';
+            header.offsetHeight; // Trigger reflow
+            header.style.animation = 'bounce-in 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
+        },
+        
+        initAnimations() {
+            // Initialize page animations
+            setTimeout(() => {
+                feather.replace();
+            }, 100);
+        },
+        
+        animateTyping(input) {
+            // Add typing glow effect
+            input.classList.add('typing-glow');
+            setTimeout(() => {
+                input.classList.remove('typing-glow');
+            }, 300);
+            
+            // Auto-focus PIN when username is sufficient
+            if (input.value.length >= 5 && input.id === 'telegram_username') {
+                setTimeout(() => {
+                    document.getElementById('pin').focus();
+                }, 200);
+            }
+        },
+        
+        animatePinInput(input) {
+            // Only allow numbers
+            input.value = input.value.replace(/[^0-9]/g, '');
+            
+            // Limit to 4 digits
+            if (input.value.length > 4) {
+                input.value = input.value.slice(0, 4);
+            }
+            
+            // Animate PIN dots
+            const dots = document.querySelectorAll('.pin-dot');
+            const filledCount = input.value.length;
+            
+            dots.forEach((dot, index) => {
+                if (index < filledCount) {
+                    dot.classList.add('filled');
+                } else {
+                    dot.classList.remove('filled');
+                }
+            });
+            
+            // Add pulse effect when PIN is complete
+            if (input.value.length === 4) {
+                input.style.animation = 'pulse-glow 0.5s ease-in-out';
+                setTimeout(() => {
+                    input.style.animation = '';
+                }, 500);
+            }
+        },
+        
+        startSubmissionAnimation() {
+            this.isSubmitting = true;
+            
+            // Add submission effects
+            const submitBtn = document.querySelector('.submit-btn');
+            submitBtn.style.transform = 'scale(0.95)';
+            
+            setTimeout(() => {
+                submitBtn.style.transform = '';
+            }, 150);
+        }
+    }
+}
+
+// Initialize animations when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Create floating particles effect
+    function createFloatingParticle() {
+        const particle = document.createElement('div');
+        particle.className = 'fixed w-2 h-2 bg-blue-400 rounded-full opacity-20 pointer-events-none';
+        particle.style.left = Math.random() * 100 + '%';
+        particle.style.top = '100%';
+        particle.style.animation = `float ${3 + Math.random() * 3}s linear infinite`;
+        
+        document.body.appendChild(particle);
+        
+        setTimeout(() => {
+            particle.remove();
+        }, 6000);
+    }
+    
+    // Create particles periodically
+    setInterval(createFloatingParticle, 2000);
+    
+    // Enhanced PIN input formatting
+    const pinInput = document.getElementById('pin');
+    if (pinInput) {
+        pinInput.addEventListener('input', function(e) {
+            const event = new CustomEvent('input');
+            this.dispatchEvent(event);
+        });
+    }
+    
+    // Initialize feather icons with delay for Alpine.js
+    setTimeout(() => {
+        feather.replace();
+    }, 200);
 });
 
-// Auto-focus PIN when username is filled
-document.getElementById('telegram_username').addEventListener('input', function(e) {
-    if (this.value.length >= 5) {
-        document.getElementById('pin').focus();
-    }
-});
+// Welcome animation for new users
+function showWelcomeMessage() {
+    const welcomeMsg = document.createElement('div');
+    welcomeMsg.className = 'fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 success-bounce';
+    welcomeMsg.innerHTML = `
+        <div class="flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+            Welcome to TeleSignals!
+        </div>
+    `;
+    
+    document.body.appendChild(welcomeMsg);
+    
+    setTimeout(() => {
+        welcomeMsg.style.animation = 'slide-in-from-top 0.5s ease-in reverse';
+        setTimeout(() => {
+            welcomeMsg.remove();
+        }, 500);
+    }, 3000);
+}
 </script>
 {% endblock %}
