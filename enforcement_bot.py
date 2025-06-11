@@ -34,7 +34,17 @@ class EnforcementBot:
         self.api_hash = os.environ.get('TELEGRAM_API_HASH')
         self.bot_token = os.environ.get('TELEGRAM_BOT_TOKEN')
         self.phone = os.environ.get('TELEGRAM_PHONE')
-        self.session_name = 'enforcement_bot'
+        
+        # Use persistent session name from environment or default
+        self.session_name = os.environ.get('TELETHON_SESSION', 'enforcement.session')
+        
+        # Ensure session directory exists
+        self.session_dir = os.path.join(os.getcwd(), 'sessions')
+        if not os.path.exists(self.session_dir):
+            os.makedirs(self.session_dir, exist_ok=True)
+        
+        # Full path to session file (without .session extension, Telethon adds it)
+        self.session_path = os.path.join(self.session_dir, 'enforcement')
         
         # Safety configuration
         self.dry_run = os.environ.get('BOT_MODE', 'dry-run') == 'dry-run'
@@ -81,21 +91,31 @@ class EnforcementBot:
                 logger.error(f"Invalid API ID format: {self.api_id}")
                 return False
             
+            # Create client with persistent session path
             self.client = TelegramClient(
-                self.session_name,
+                self.session_path,
                 api_id,
                 self.api_hash
             )
             
-            # Check if session file exists and is valid
-            if not os.path.exists(f"{self.session_name}.session"):
+            # Check if session file exists
+            session_file = f"{self.session_path}.session"
+            if not os.path.exists(session_file):
                 logger.info("No session file found - bot requires authentication first")
                 logger.info("Use admin panel at /admin/bot-setup to authenticate the bot")
                 return False
             
-            # Try to connect without authentication (use existing session)
+            # Set proper permissions for session file
+            try:
+                os.chmod(session_file, 0o600)
+                logger.debug("Set session file permissions to 600")
+            except Exception as e:
+                logger.warning(f"Could not set session file permissions: {e}")
+            
+            # Try to connect using existing session
             try:
                 await self.client.connect()
+                logger.info(f"Connected to Telegram using session: {session_file}")
                 
                 # Check if we're authenticated
                 if not await self.client.is_user_authorized():
@@ -732,9 +752,14 @@ def initiate_telegram_auth(api_id: str, api_hash: str, phone: str) -> Dict:
         async def send_code():
             client = None
             try:
+                # Use the same session directory structure
+                session_dir = os.path.join(os.getcwd(), 'sessions')
+                if not os.path.exists(session_dir):
+                    os.makedirs(session_dir, exist_ok=True)
+                
                 # Clean up any existing temp sessions
-                import os
-                session_files = ['temp_session.session', 'temp_session.session-journal']
+                temp_session_path = os.path.join(session_dir, 'temp_auth')
+                session_files = [f'{temp_session_path}.session', f'{temp_session_path}.session-journal']
                 for file in session_files:
                     if os.path.exists(file):
                         try:
@@ -742,7 +767,7 @@ def initiate_telegram_auth(api_id: str, api_hash: str, phone: str) -> Dict:
                         except:
                             pass
                 
-                client = TelegramClient('temp_session', int(api_id), api_hash)
+                client = TelegramClient(temp_session_path, int(api_id), api_hash)
                 await client.connect()
                 
                 logger.info("Connected to Telegram servers")
@@ -828,15 +853,45 @@ def complete_telegram_auth(api_id: str, api_hash: str, phone: str, code: str, ph
         async def verify_code():
             client = None
             try:
-                client = TelegramClient('temp_session', int(api_id), api_hash)
+                # Use same session directory structure
+                session_dir = os.path.join(os.getcwd(), 'sessions')
+                if not os.path.exists(session_dir):
+                    os.makedirs(session_dir, exist_ok=True)
+                
+                temp_session_path = os.path.join(session_dir, 'temp_auth')
+                client = TelegramClient(temp_session_path, int(api_id), api_hash)
                 await client.connect()
                 
                 if phone_code_hash == 'already_authorized':
+                    # Move temp session to permanent enforcement session
+                    enforcement_session_path = os.path.join(session_dir, 'enforcement')
+                    import shutil
+                    if os.path.exists(f'{temp_session_path}.session'):
+                        shutil.move(f'{temp_session_path}.session', f'{enforcement_session_path}.session')
+                        # Set proper permissions
+                        os.chmod(f'{enforcement_session_path}.session', 0o600)
                     return {'success': True}
                 
                 await client.sign_in(phone, code, phone_code_hash=phone_code_hash)
+                
+                # Authentication successful, move session to permanent location
+                enforcement_session_path = os.path.join(session_dir, 'enforcement')
+                
+                # Disconnect temp client first
+                await client.disconnect()
+                
+                # Move session file to enforcement location
+                import shutil
+                if os.path.exists(f'{temp_session_path}.session'):
+                    shutil.move(f'{temp_session_path}.session', f'{enforcement_session_path}.session')
+                    # Set proper permissions for the enforcement session
+                    os.chmod(f'{enforcement_session_path}.session', 0o600)
+                    logger.info(f"Session created and moved to: {enforcement_session_path}.session")
+                
                 return {'success': True}
+                
             except Exception as e:
+                logger.error(f"Authentication verification failed: {e}")
                 return {
                     'success': False,
                     'error': str(e)
