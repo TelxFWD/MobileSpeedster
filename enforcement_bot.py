@@ -942,16 +942,10 @@ def run_enforcement_bot_background():
             if not api_id or not api_hash:
                 logger.info("Enforcement bot: Telegram API credentials not configured - running in standby mode")
                 logger.info("Configure credentials at /admin/bot-setup to activate enforcement")
-                # Keep the thread alive but don't attempt to connect
-                while True:
-                    time.sleep(60)  # Check every minute for credentials
-                    new_api_id = os.environ.get('TELEGRAM_API_ID')
-                    new_api_hash = os.environ.get('TELEGRAM_API_HASH')
-                    if new_api_id and new_api_hash:
-                        logger.info("Credentials detected, attempting to start enforcement bot")
-                        break
+                return
             
-            asyncio.run(start_enforcement_bot())
+            # Disabled during migration - will be enabled after configuration
+            logger.info("Enforcement bot configured but disabled during migration")
         except Exception as e:
             logger.info(f"Enforcement bot in standby mode: {e}")
             logger.info("Configure Telegram API credentials in admin panel to activate")
