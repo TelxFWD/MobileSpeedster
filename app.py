@@ -72,8 +72,8 @@ bot_thread.start()
 def run_enforcement_bot_background():
     """Start enforcement bot service in background"""
     try:
-        from enforcement_bot import run_enforcement_bot
-        run_enforcement_bot()
+        from enforcement_bot import run_enforcement_bot_background as start_enforcement_service
+        start_enforcement_service()
     except Exception as e:
         logger.error(f"Failed to start enforcement bot service: {e}")
 
