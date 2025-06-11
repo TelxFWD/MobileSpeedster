@@ -70,11 +70,16 @@ class EnforcementBot:
         try:
             # Check if credentials are available
             if not self.api_id or not self.api_hash:
-                logger.warning("Telegram API credentials not configured - bot will run in standby mode")
+                logger.info("Telegram API credentials not configured - bot will remain in standby mode")
+                logger.info("Configure credentials in admin panel at /admin/bot-setup to activate enforcement")
                 return False
             
             # Convert api_id to int if it's a string
-            api_id = int(self.api_id) if isinstance(self.api_id, str) else self.api_id
+            try:
+                api_id = int(self.api_id) if isinstance(self.api_id, str) else self.api_id
+            except (ValueError, TypeError):
+                logger.error(f"Invalid API ID format: {self.api_id}")
+                return False
             
             self.client = TelegramClient(
                 self.session_name,
@@ -84,8 +89,8 @@ class EnforcementBot:
             
             # Check if session file exists and is valid
             if not os.path.exists(f"{self.session_name}.session"):
-                logger.warning("No valid session file found - bot requires authentication first")
-                logger.info("Please use the admin panel to authenticate the bot")
+                logger.info("No session file found - bot requires authentication first")
+                logger.info("Use admin panel at /admin/bot-setup to authenticate the bot")
                 return False
             
             # Try to connect without authentication (use existing session)
@@ -109,12 +114,16 @@ class EnforcementBot:
                 return True
                 
             except Exception as conn_error:
-                logger.error(f"Failed to connect with existing session: {conn_error}")
-                await self.client.disconnect()
+                logger.warning(f"Failed to connect with existing session: {conn_error}")
+                if self.client:
+                    try:
+                        await self.client.disconnect()
+                    except:
+                        pass
                 return False
             
         except Exception as e:
-            logger.error(f"Failed to initialize client: {e}")
+            logger.warning(f"Failed to initialize client: {e}")
             return False
     
     async def sync_channels(self):
@@ -667,22 +676,25 @@ def run_enforcement_bot_background():
             
             if not api_id or not api_hash:
                 logger.info("Enforcement bot: Telegram API credentials not configured - running in standby mode")
+                logger.info("Configure credentials at /admin/bot-setup to activate enforcement")
                 # Keep the thread alive but don't attempt to connect
                 while True:
                     time.sleep(60)  # Check every minute for credentials
-                    if os.environ.get('TELEGRAM_API_ID') and os.environ.get('TELEGRAM_API_HASH'):
+                    new_api_id = os.environ.get('TELEGRAM_API_ID')
+                    new_api_hash = os.environ.get('TELEGRAM_API_HASH')
+                    if new_api_id and new_api_hash:
                         logger.info("Credentials detected, attempting to start enforcement bot")
                         break
             
             asyncio.run(start_enforcement_bot())
         except Exception as e:
-            logger.error(f"Background bot worker failed: {e}")
-            logger.info("Enforcement bot will remain in standby mode")
+            logger.info(f"Enforcement bot in standby mode: {e}")
+            logger.info("Configure Telegram API credentials in admin panel to activate")
     
     # Start bot in background thread
     bot_thread = threading.Thread(target=bot_worker, daemon=True)
     bot_thread.start()
-    logger.info("Enforcement bot started in background")
+    logger.info("Enforcement bot background service started")
 
 async def get_enforcement_bot():
     """Get the global enforcement bot instance"""

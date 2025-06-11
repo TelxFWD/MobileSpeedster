@@ -8,6 +8,8 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 
 class Base(DeclarativeBase):
     pass
@@ -67,6 +69,26 @@ def start_bot_background():
 bot_thread = threading.Thread(target=start_bot_background, daemon=True)
 bot_thread.start()
 
+def run_enforcement_bot_background():
+    """Start enforcement bot service in background"""
+    try:
+        from enforcement_bot import run_enforcement_bot
+        run_enforcement_bot()
+    except Exception as e:
+        logger.error(f"Failed to start enforcement bot service: {e}")
+
+
 # Enforcement bot temporarily disabled for migration
 # Will be re-enabled once Telegram API credentials are properly configured
-logging.info("Enforcement bot temporarily disabled during migration - configure Telegram API credentials in admin panel to enable")
+
+# Start enforcement bot in background
+api_id = os.environ.get('TELEGRAM_API_ID')
+api_hash = os.environ.get('TELEGRAM_API_HASH')
+bot_token = os.environ.get('TELEGRAM_BOT_TOKEN')
+
+if not api_id or not api_hash or not bot_token:
+    logger.info("Enforcement bot in standby mode - configure Telegram API credentials at /admin/bot-setup to activate")
+else:
+    logger.info("Starting enforcement bot with configured credentials")
+
+run_enforcement_bot_background()
