@@ -581,11 +581,18 @@ class EnforcementBot:
                         continue
                     except ValueError as ve:
                         if "Cannot find any entity" in str(ve):
-                            logger.error(f"Invalid channel ID format: {channel_id}. Use format: @username or -100xxxxxxxxx")
+                            logger.debug(f"Channel {channel_id} entity not found, trying alternative format")
+                            # Try converting numeric ID to proper format if needed
+                            if channel_id.startswith('-') and channel_id[1:].isdigit():
+                                logger.debug(f"Channel ID {channel_id} is valid numeric format")
+                            else:
+                                logger.error(f"Channel validation error for {channel_id}: {ve}")
+                                total_errors += 1
+                                continue
                         else:
                             logger.error(f"Channel validation error for {channel_id}: {ve}")
-                        total_errors += 1
-                        continue
+                            total_errors += 1
+                            continue
                     except Exception as entity_error:
                         logger.error(f"Cannot access channel {channel_id}: {entity_error}")
                         logger.warning(f"Bot may need to be added to channel {channel_id} as admin")
@@ -1286,16 +1293,15 @@ def check_bot_channel_access(channel_id: str) -> Dict:
                 'error': 'Enforcement bot not initialized. Configure Telegram API credentials first.'
             }
         
-        # Use the existing event loop or get the running one
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            # No running loop, create a new one
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            should_close = True
-        else:
-            should_close = False
+        # Check if bot has a client initialized
+        if not hasattr(enforcement_bot.client, '_loop') or enforcement_bot.client._loop is None:
+            return {
+                'success': False,
+                'error': 'Enforcement bot client not properly initialized'
+            }
+        
+        # Use the bot's existing event loop
+        bot_loop = enforcement_bot.client._loop
         
         # Handle event loop properly for Flask/threading environment
         async def check_access():
@@ -1336,24 +1342,18 @@ def check_bot_channel_access(channel_id: str) -> Dict:
                     'error': f'Failed to check channel access: {str(e)}'
                 }
         
-        # Use thread-safe approach for Flask environment
+        # Use asyncio.run_coroutine_threadsafe to submit the coroutine to the bot's event loop
         import concurrent.futures
-        import threading
         
-        def run_in_thread():
-            # Create new event loop for this thread
-            new_loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(new_loop)
-            try:
-                return new_loop.run_until_complete(check_access())
-            finally:
-                new_loop.close()
-        
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(run_in_thread)
+        future = asyncio.run_coroutine_threadsafe(check_access(), bot_loop)
+        try:
             result = future.result(timeout=30)
-        
-        return result
+            return result
+        except concurrent.futures.TimeoutError:
+            return {
+                'success': False,
+                'error': 'Channel access check timed out'
+            }
         
     except Exception as e:
         logger.error(f"Failed to check bot channel access: {e}")
