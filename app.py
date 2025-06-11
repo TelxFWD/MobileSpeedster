@@ -78,10 +78,10 @@ def run_enforcement_bot_background():
         logger.error(f"Failed to start enforcement bot service: {e}")
 
 
-# Enforcement bot temporarily disabled for migration
-# Will be re-enabled once Telegram API credentials are properly configured
+# Enforcement bot temporarily disabled during migration to fix startup issues
+# Will be re-enabled once Channel ID functionality is fully tested
 
-# Start enforcement bot in background
+# Check enforcement bot configuration
 api_id = os.environ.get('TELEGRAM_API_ID')
 api_hash = os.environ.get('TELEGRAM_API_HASH')
 bot_token = os.environ.get('TELEGRAM_BOT_TOKEN')
@@ -89,6 +89,7 @@ bot_token = os.environ.get('TELEGRAM_BOT_TOKEN')
 if not api_id or not api_hash or not bot_token:
     logger.info("Enforcement bot in standby mode - configure Telegram API credentials at /admin/bot-setup to activate")
 else:
-    logger.info("Starting enforcement bot with configured credentials")
+    logger.info("Enforcement bot configured but disabled during migration - will be enabled after setup verification")
 
-run_enforcement_bot_background()
+# Temporarily disable enforcement bot startup
+# run_enforcement_bot_background()

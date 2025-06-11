@@ -58,7 +58,7 @@ class EnforcementBot:
         self.minute_start = time.time()
         
         # Tracking
-        self.managed_channels: Set[str] = set()
+        self.managed_channels: Dict[str, Dict] = {}
         self.whitelisted_users: Set[int] = set()
         self.client: Optional[TelegramClient] = None
         self.running = False
@@ -154,23 +154,34 @@ class EnforcementBot:
             # Import here to avoid circular imports
             from models import Channel
             
+            # Only sync channels that have telegram_channel_id configured
             active_channels = session.query(Channel).filter(
                 Channel.is_active == True,
-                Channel.telegram_link.isnot(None)
+                Channel.telegram_channel_id.isnot(None),
+                Channel.telegram_channel_id != ''
             ).all()
             
-            new_channels = set()
+            new_channels = {}
             for channel in active_channels:
-                # Extract channel identifier from telegram_link
-                if 't.me/' in channel.telegram_link:
-                    channel_id = channel.telegram_link.split('t.me/')[-1]
-                    new_channels.add(channel_id)
+                # Use the configured telegram_channel_id for enforcement
+                channel_id = channel.telegram_channel_id.strip()
+                if channel_id:
+                    # Store both the ID and channel name for reference
+                    new_channels[channel_id] = {
+                        'name': channel.name,
+                        'db_id': channel.id
+                    }
             
             old_count = len(self.managed_channels)
             self.managed_channels = new_channels
             new_count = len(self.managed_channels)
             
             logger.info(f"Channel sync complete: {old_count} -> {new_count} channels")
+            if new_count > 0:
+                logger.info(f"Managing channels: {list(new_channels.keys())}")
+            else:
+                logger.warning("No channels configured with telegram_channel_id - enforcement bot will be idle")
+            
             session.close()
             
         except Exception as e:
@@ -519,9 +530,10 @@ class EnforcementBot:
                 logger.warning("Telegram client not available - skipping enforcement")
                 return
             
-            # Get all active channels that have telegram_channel_id configured
-            active_channels = await self.get_managed_channels()
-            if not active_channels:
+            # Refresh channel list from database
+            await self.sync_channels()
+            
+            if not self.managed_channels:
                 logger.info("No channels configured for enforcement")
                 return
             
@@ -531,21 +543,35 @@ class EnforcementBot:
             total_errors = 0
             
             # Process each channel individually for better control
-            for channel_data in active_channels:
-                channel_id = channel_data['telegram_channel_id']
-                channel_name = channel_data['name']
+            for channel_id, channel_info in self.managed_channels.items():
+                channel_name = channel_info['name']
                 
                 try:
                     logger.info(f"Processing channel: {channel_name} ({channel_id})")
                     
-                    # Get channel entity
-                    channel_entity = await self.client.get_entity(channel_id)
+                    # Validate channel ID format
+                    if not channel_id.startswith('@') and not channel_id.startswith('-100'):
+                        logger.warning(f"Invalid channel ID format: {channel_id} - skipping")
+                        total_errors += 1
+                        continue
+                    
+                    # Try to get channel entity with better error handling
+                    try:
+                        channel_entity = await self.client.get_entity(channel_id)
+                        logger.debug(f"Successfully found channel: {channel_entity.title}")
+                    except Exception as entity_error:
+                        logger.error(f"Cannot find channel {channel_id}: {entity_error}")
+                        # Try to remove invalid channel from managed list
+                        if "Cannot find any entity" in str(entity_error):
+                            logger.warning(f"Removing invalid channel {channel_id} from enforcement list")
+                        total_errors += 1
+                        continue
                     
                     # Get users who should have access to this specific channel
-                    authorized_users = await self.get_authorized_users_for_channel(channel_data['id'])
+                    authorized_users = await self.get_authorized_users_for_channel(channel_info['db_id'])
                     
                     # Get users who should be banned from this specific channel
-                    banned_users = await self.get_banned_users_for_channel(channel_data['id'])
+                    banned_users = await self.get_banned_users_for_channel(channel_info['db_id'])
                     
                     # Process bans for this channel
                     for user_data in banned_users:
