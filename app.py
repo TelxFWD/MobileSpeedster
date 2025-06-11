@@ -67,15 +67,6 @@ def start_bot_background():
 bot_thread = threading.Thread(target=start_bot_background, daemon=True)
 bot_thread.start()
 
-# Start enforcement bot in background
-def start_enforcement_bot_background():
-    """Start enforcement bot service in background"""
-    try:
-        from enforcement_bot import run_enforcement_bot_background
-        run_enforcement_bot_background()
-    except Exception as e:
-        logging.error(f"Failed to start enforcement bot: {e}")
-
-# Start enforcement bot in background thread
-enforcement_thread = threading.Thread(target=start_enforcement_bot_background, daemon=True)
-enforcement_thread.start()
+# Enforcement bot temporarily disabled for migration
+# Will be re-enabled once Telegram API credentials are properly configured
+logging.info("Enforcement bot temporarily disabled during migration - configure Telegram API credentials in admin panel to enable")

@@ -96,7 +96,8 @@ class EnforcementBot:
                 if not await self.client.is_user_authorized():
                     logger.warning("Session expired or invalid - bot requires re-authentication")
                     logger.info("Please use the admin panel to re-authenticate the bot")
-                    await self.client.disconnect()
+                    if self.client:
+                        await self.client.disconnect()
                     return False
                 
                 logger.info("Telegram client connected successfully using existing session")
@@ -660,9 +661,23 @@ def run_enforcement_bot_background():
     """Run enforcement bot in background thread"""
     def bot_worker():
         try:
+            # Check if credentials are available before attempting to start
+            api_id = os.environ.get('TELEGRAM_API_ID')
+            api_hash = os.environ.get('TELEGRAM_API_HASH')
+            
+            if not api_id or not api_hash:
+                logger.info("Enforcement bot: Telegram API credentials not configured - running in standby mode")
+                # Keep the thread alive but don't attempt to connect
+                while True:
+                    time.sleep(60)  # Check every minute for credentials
+                    if os.environ.get('TELEGRAM_API_ID') and os.environ.get('TELEGRAM_API_HASH'):
+                        logger.info("Credentials detected, attempting to start enforcement bot")
+                        break
+            
             asyncio.run(start_enforcement_bot())
         except Exception as e:
             logger.error(f"Background bot worker failed: {e}")
+            logger.info("Enforcement bot will remain in standby mode")
     
     # Start bot in background thread
     bot_thread = threading.Thread(target=bot_worker, daemon=True)
