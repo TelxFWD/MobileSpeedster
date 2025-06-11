@@ -546,7 +546,18 @@ def initiate_telegram_auth(api_id: str, api_hash: str, phone: str) -> Dict:
         logger.info(f"Initiating Telegram auth for phone: {phone}")
         
         async def send_code():
+            client = None
             try:
+                # Clean up any existing temp sessions
+                import os
+                session_files = ['temp_session.session', 'temp_session.session-journal']
+                for file in session_files:
+                    if os.path.exists(file):
+                        try:
+                            os.remove(file)
+                        except:
+                            pass
+                
                 client = TelegramClient('temp_session', int(api_id), api_hash)
                 await client.connect()
                 
@@ -555,14 +566,12 @@ def initiate_telegram_auth(api_id: str, api_hash: str, phone: str) -> Dict:
                 if not await client.is_user_authorized():
                     logger.info(f"Sending OTP code to {phone}")
                     result = await client.send_code_request(phone)
-                    await client.disconnect()
                     logger.info("OTP code sent successfully")
                     return {
                         'success': True,
                         'phone_code_hash': result.phone_code_hash
                     }
                 else:
-                    await client.disconnect()
                     logger.info("User already authorized")
                     return {
                         'success': True,
@@ -570,38 +579,51 @@ def initiate_telegram_auth(api_id: str, api_hash: str, phone: str) -> Dict:
                     }
                     
             except PhoneNumberInvalidError:
-                await client.disconnect()
                 logger.error(f"Invalid phone number format: {phone}")
                 return {
                     'success': False,
                     'error': f"Invalid phone number format. Please use international format (e.g., +1234567890)"
                 }
             except ApiIdInvalidError:
-                await client.disconnect()
                 logger.error("Invalid API ID or Hash")
                 return {
                     'success': False,
                     'error': "Invalid API ID or Hash. Please check your credentials from my.telegram.org"
                 }
             except FloodWaitError as e:
-                await client.disconnect()
                 logger.error(f"Rate limited, wait {e.seconds} seconds")
                 return {
                     'success': False,
                     'error': f"Too many requests. Please wait {e.seconds} seconds and try again"
                 }
             except Exception as e:
-                await client.disconnect()
                 logger.error(f"Unexpected error during OTP request: {e}")
                 return {
                     'success': False,
                     'error': f"Failed to send OTP: {str(e)}"
                 }
+            finally:
+                if client:
+                    try:
+                        await client.disconnect()
+                    except:
+                        pass
         
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(send_code())
-        loop.close()
+        # Handle event loop properly for Flask environment
+        try:
+            # Try to get existing event loop
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # Use thread executor for running loop
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(asyncio.run, send_code())
+                    result = future.result(timeout=30)
+            else:
+                result = loop.run_until_complete(send_code())
+        except RuntimeError:
+            # No event loop exists, create new one
+            result = asyncio.run(send_code())
         
         return result
         
@@ -620,28 +642,43 @@ def complete_telegram_auth(api_id: str, api_hash: str, phone: str, code: str, ph
         import asyncio
         
         async def verify_code():
-            client = TelegramClient('temp_session', int(api_id), api_hash)
-            await client.connect()
-            
-            if phone_code_hash == 'already_authorized':
-                await client.disconnect()
-                return {'success': True}
-            
+            client = None
             try:
+                client = TelegramClient('temp_session', int(api_id), api_hash)
+                await client.connect()
+                
+                if phone_code_hash == 'already_authorized':
+                    return {'success': True}
+                
                 await client.sign_in(phone, code, phone_code_hash=phone_code_hash)
-                await client.disconnect()
                 return {'success': True}
             except Exception as e:
-                await client.disconnect()
                 return {
                     'success': False,
                     'error': str(e)
                 }
+            finally:
+                if client:
+                    try:
+                        await client.disconnect()
+                    except:
+                        pass
         
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(verify_code())
-        loop.close()
+        # Handle event loop properly for Flask environment
+        try:
+            # Try to get existing event loop
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # Use thread executor for running loop
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(asyncio.run, verify_code())
+                    result = future.result(timeout=30)
+            else:
+                result = loop.run_until_complete(verify_code())
+        except RuntimeError:
+            # No event loop exists, create new one
+            result = asyncio.run(verify_code())
         
         return result
         
