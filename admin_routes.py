@@ -291,6 +291,7 @@ def edit_channel(channel_id):
     channel.name = request.form.get('name', '').strip()
     channel.description = request.form.get('description', '').strip()
     channel.telegram_link = request.form.get('telegram_link', '').strip()
+    telegram_channel_id = request.form.get('telegram_channel_id', '').strip()
     channel.solo_price = request.form.get('solo_price', type=float)
     channel.solo_duration_days = request.form.get('solo_duration_days', type=int)
     channel.show_in_custom_bundle = request.form.get('show_in_custom_bundle') == 'on'
@@ -299,8 +300,41 @@ def edit_channel(channel_id):
         flash('Please fill in required fields', 'error')
         return redirect(url_for('admin_channels'))
     
+    # Validate and update channel ID if provided
+    old_channel_id = channel.telegram_channel_id
+    if telegram_channel_id:
+        if telegram_channel_id.startswith('@'):
+            telegram_channel_id = telegram_channel_id[1:]
+        elif not telegram_channel_id.startswith('-100'):
+            try:
+                int(telegram_channel_id)
+            except ValueError:
+                flash('Invalid channel ID format. Use @channelname or numeric ID', 'error')
+                return redirect(url_for('admin_channels'))
+        
+        channel.telegram_channel_id = telegram_channel_id
+    else:
+        channel.telegram_channel_id = None
+    
     db.session.commit()
-    flash('Channel updated successfully!', 'success')
+    
+    # Check bot access if channel ID was updated
+    if telegram_channel_id and telegram_channel_id != old_channel_id:
+        try:
+            from enforcement_bot import check_bot_channel_access
+            access_result = check_bot_channel_access(telegram_channel_id)
+            if access_result.get('success'):
+                if access_result.get('has_access'):
+                    flash(f'Channel updated successfully! Bot has admin access to {telegram_channel_id}', 'success')
+                else:
+                    flash(f'Channel updated but bot needs admin access to {telegram_channel_id}', 'warning')
+            else:
+                flash(f'Channel updated but could not verify bot access: {access_result.get("error", "Unknown error")}', 'warning')
+        except Exception as e:
+            flash('Channel updated but could not check bot access', 'warning')
+    else:
+        flash('Channel updated successfully!', 'success')
+    
     return redirect(url_for('admin_channels'))
 
 @app.route('/admin/promos')
@@ -1142,3 +1176,246 @@ def admin_bot_setup():
                          otp_required=otp_required,
                          temp_config=temp_config,
                          current_config=current_config)
+
+@app.route('/admin/channel-access')
+@admin_required
+def admin_channel_access():
+    """Channel access management page"""
+    try:
+        from enforcement_bot import bulk_check_channels, get_session_status
+        
+        # Get bot status
+        bot_status = get_session_status()
+        
+        # Get channel access status
+        if bot_status.get('status', {}).get('bot_running'):
+            access_results = bulk_check_channels()
+        else:
+            access_results = {'success': False, 'error': 'Bot not running'}
+        
+        return render_template('admin/channel_access.html',
+                             bot_status=bot_status,
+                             access_results=access_results)
+    except Exception as e:
+        flash(f'Error checking channel access: {str(e)}', 'error')
+        return redirect(url_for('admin_channels'))
+
+@app.route('/admin/check-channel-access/<int:channel_id>')
+@admin_required
+def check_single_channel_access(channel_id):
+    """Check access for a single channel"""
+    try:
+        channel = Channel.query.get_or_404(channel_id)
+        
+        if not channel.telegram_channel_id:
+            return jsonify({
+                'success': False,
+                'error': 'No channel ID configured'
+            })
+        
+        from enforcement_bot import check_bot_channel_access
+        result = check_bot_channel_access(channel.telegram_channel_id)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@app.route('/admin/enforcement-settings', methods=['GET', 'POST'])
+@admin_required
+def admin_enforcement_settings():
+    """Enforcement bot settings management"""
+    if request.method == 'POST':
+        try:
+            # Update enforcement settings
+            import os
+            
+            # Update bot mode
+            new_mode = request.form.get('bot_mode', 'dry-run')
+            if new_mode in ['dry-run', 'live']:
+                os.environ['BOT_MODE'] = new_mode
+                
+                # Update .env file for persistence
+                env_path = '.env'
+                if os.path.exists(env_path):
+                    with open(env_path, 'r') as f:
+                        lines = f.readlines()
+                    
+                    # Update or add BOT_MODE line
+                    found = False
+                    for i, line in enumerate(lines):
+                        if line.startswith('BOT_MODE='):
+                            lines[i] = f'BOT_MODE={new_mode}\n'
+                            found = True
+                            break
+                    
+                    if not found:
+                        lines.append(f'BOT_MODE={new_mode}\n')
+                    
+                    with open(env_path, 'w') as f:
+                        f.writelines(lines)
+                
+                flash(f'Bot mode updated to {new_mode}', 'success')
+                
+                # Restart enforcement bot to apply new settings
+                from enforcement_bot import restart_enforcement_bot
+                restart_result = restart_enforcement_bot()
+                
+                if restart_result.get('success'):
+                    flash('Enforcement bot restarted with new settings', 'success')
+                else:
+                    flash('Settings saved but bot restart failed', 'warning')
+            else:
+                flash('Invalid bot mode', 'error')
+                
+        except Exception as e:
+            flash(f'Error updating settings: {str(e)}', 'error')
+        
+        return redirect(url_for('admin_enforcement_settings'))
+    
+    # GET request - show settings
+    import os
+    from enforcement_bot import get_session_status
+    
+    settings = {
+        'bot_mode': os.environ.get('BOT_MODE', 'dry-run'),
+        'api_configured': bool(os.environ.get('TELEGRAM_API_ID') and os.environ.get('TELEGRAM_API_HASH')),
+        'scan_interval': 300,  # 5 minutes
+        'max_actions_per_minute': 20
+    }
+    
+    bot_status = get_session_status()
+    
+    return render_template('admin/enforcement_settings.html',
+                         settings=settings,
+                         bot_status=bot_status)
+
+@app.route('/admin/manual-enforcement', methods=['POST'])
+@admin_required
+def admin_manual_enforcement():
+    """Manual user ban/unban actions"""
+    try:
+        action = request.form.get('action')
+        user_id = request.form.get('user_id', type=int)
+        reason = request.form.get('reason', 'Manual admin action')
+        
+        if not user_id:
+            flash('User ID is required', 'error')
+            return redirect(url_for('admin_users'))
+        
+        # Get user for logging
+        user = User.query.get(user_id)
+        if not user:
+            flash('User not found', 'error')
+            return redirect(url_for('admin_users'))
+        
+        from enforcement_bot import admin_ban_user, admin_unban_user
+        
+        if action == 'ban':
+            # Convert user ID to telegram chat ID for banning
+            if user.telegram_chat_id:
+                telegram_user_id = int(user.telegram_chat_id)
+                
+                # Run ban operation asynchronously
+                import asyncio
+                try:
+                    result = asyncio.run(admin_ban_user(telegram_user_id, reason))
+                    
+                    if result.get('error'):
+                        flash(f'Ban failed: {result["error"]}', 'error')
+                    else:
+                        successful_bans = result.get('successful_bans', 0)
+                        total_channels = result.get('total_channels', 0)
+                        flash(f'User banned from {successful_bans}/{total_channels} channels', 'success')
+                        
+                        # Update user status
+                        user.is_banned = True
+                        db.session.commit()
+                        
+                except Exception as e:
+                    flash(f'Ban operation failed: {str(e)}', 'error')
+            else:
+                flash('User has no Telegram chat ID', 'error')
+                
+        elif action == 'unban':
+            if user.telegram_chat_id:
+                telegram_user_id = int(user.telegram_chat_id)
+                
+                import asyncio
+                try:
+                    result = asyncio.run(admin_unban_user(telegram_user_id, reason))
+                    
+                    if result.get('error'):
+                        flash(f'Unban failed: {result["error"]}', 'error')
+                    else:
+                        successful_unbans = result.get('successful_unbans', 0)
+                        total_channels = result.get('total_channels', 0)
+                        flash(f'User unbanned from {successful_unbans}/{total_channels} channels', 'success')
+                        
+                        # Update user status
+                        user.is_banned = False
+                        db.session.commit()
+                        
+                except Exception as e:
+                    flash(f'Unban operation failed: {str(e)}', 'error')
+            else:
+                flash('User has no Telegram chat ID', 'error')
+        else:
+            flash('Invalid action', 'error')
+            
+    except Exception as e:
+        flash(f'Manual enforcement error: {str(e)}', 'error')
+    
+    return redirect(url_for('admin_users'))
+
+@app.route('/admin/enforcement-logs')
+@admin_required  
+def admin_enforcement_logs():
+    """View enforcement bot logs"""
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    
+    logs = BotLog.query.order_by(BotLog.timestamp.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    
+    return render_template('admin/enforcement_logs.html', logs=logs)
+
+@app.route('/admin/test-enforcement')
+@admin_required
+def admin_test_enforcement():
+    """Test enforcement bot functionality"""
+    try:
+        from enforcement_bot import get_enforcement_bot
+        import asyncio
+        
+        async def test_bot():
+            bot = await get_enforcement_bot()
+            if not bot or not bot.client:
+                return {'success': False, 'error': 'Bot not available'}
+            
+            # Test basic connectivity
+            try:
+                me = await bot.client.get_me()
+                return {
+                    'success': True,
+                    'bot_info': {
+                        'id': me.id,
+                        'username': me.username,
+                        'first_name': me.first_name
+                    }
+                }
+            except Exception as e:
+                return {'success': False, 'error': str(e)}
+        
+        result = asyncio.run(test_bot())
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
