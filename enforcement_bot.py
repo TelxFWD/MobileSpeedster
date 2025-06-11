@@ -82,18 +82,35 @@ class EnforcementBot:
                 self.api_hash
             )
             
-            if self.phone:
-                await self.client.start(phone=self.phone)
-            else:
-                await self.client.start()
+            # Check if session file exists and is valid
+            if not os.path.exists(f"{self.session_name}.session"):
+                logger.warning("No valid session file found - bot requires authentication first")
+                logger.info("Please use the admin panel to authenticate the bot")
+                return False
             
-            logger.info("Telegram client connected successfully")
-            
-            # Load initial configuration
-            await self.sync_channels()
-            await self.load_whitelisted_users()
-            
-            return True
+            # Try to connect without authentication (use existing session)
+            try:
+                await self.client.connect()
+                
+                # Check if we're authenticated
+                if not await self.client.is_user_authorized():
+                    logger.warning("Session expired or invalid - bot requires re-authentication")
+                    logger.info("Please use the admin panel to re-authenticate the bot")
+                    await self.client.disconnect()
+                    return False
+                
+                logger.info("Telegram client connected successfully using existing session")
+                
+                # Load initial configuration
+                await self.sync_channels()
+                await self.load_whitelisted_users()
+                
+                return True
+                
+            except Exception as conn_error:
+                logger.error(f"Failed to connect with existing session: {conn_error}")
+                await self.client.disconnect()
+                return False
             
         except Exception as e:
             logger.error(f"Failed to initialize client: {e}")
