@@ -1057,21 +1057,21 @@ def initiate_telegram_auth(api_id: str, api_hash: str, phone: str) -> Dict:
                     except:
                         pass
         
-        # Handle event loop properly for Flask environment
-        try:
-            # Try to get existing event loop
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # Use thread executor for running loop
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, send_code())
-                    result = future.result(timeout=30)
-            else:
-                result = loop.run_until_complete(send_code())
-        except RuntimeError:
-            # No event loop exists, create new one
-            result = asyncio.run(send_code())
+        # Use thread-safe approach for Flask environment
+        import concurrent.futures
+        
+        def run_in_thread():
+            # Create new event loop for this thread
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            try:
+                return new_loop.run_until_complete(send_code())
+            finally:
+                new_loop.close()
+        
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(run_in_thread)
+            result = future.result(timeout=30)
         
         return result
         
@@ -1142,21 +1142,21 @@ def complete_telegram_auth(api_id: str, api_hash: str, phone: str, code: str, ph
                     except:
                         pass
         
-        # Handle event loop properly for Flask environment
-        try:
-            # Try to get existing event loop
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # Use thread executor for running loop
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, verify_code())
-                    result = future.result(timeout=30)
-            else:
-                result = loop.run_until_complete(verify_code())
-        except RuntimeError:
-            # No event loop exists, create new one
-            result = asyncio.run(verify_code())
+        # Use thread-safe approach for Flask environment
+        import concurrent.futures
+        
+        def run_in_thread():
+            # Create new event loop for this thread
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            try:
+                return new_loop.run_until_complete(verify_code())
+            finally:
+                new_loop.close()
+        
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(run_in_thread)
+            result = future.result(timeout=30)
         
         return result
         
@@ -1263,7 +1263,7 @@ def check_bot_channel_access(channel_id: str) -> Dict:
                 'error': 'Enforcement bot not initialized. Configure Telegram API credentials first.'
             }
         
-        # Handle event loop properly for Flask environment
+        # Handle event loop properly for Flask/threading environment
         async def check_access():
             try:
                 # Get channel entity
@@ -1302,18 +1302,22 @@ def check_bot_channel_access(channel_id: str) -> Dict:
                     'error': f'Failed to check channel access: {str(e)}'
                 }
         
-        # Handle event loop properly for Flask environment
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, check_access())
-                    result = future.result(timeout=30)
-            else:
-                result = loop.run_until_complete(check_access())
-        except RuntimeError:
-            result = asyncio.run(check_access())
+        # Use thread-safe approach for Flask environment
+        import concurrent.futures
+        import threading
+        
+        def run_in_thread():
+            # Create new event loop for this thread
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            try:
+                return new_loop.run_until_complete(check_access())
+            finally:
+                new_loop.close()
+        
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(run_in_thread)
+            result = future.result(timeout=30)
         
         return result
         
