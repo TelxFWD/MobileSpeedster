@@ -644,29 +644,25 @@ class EnforcementBot:
     async def get_managed_channels(self):
         """Get all channels that should be managed by the enforcement bot"""
         try:
-            if not self.Session:
-                return []
-                
-            session = self.Session()
-            
+            from app import app, db
             from models import Channel
             
-            # Get all active channels with telegram_channel_id configured
-            channels = session.query(Channel).filter(
-                Channel.is_active == True,
-                Channel.telegram_channel_id.isnot(None)
-            ).all()
-            
-            result = []
-            for channel in channels:
-                result.append({
-                    'id': channel.id,
-                    'name': channel.name,
-                    'telegram_channel_id': channel.telegram_channel_id
-                })
-            
-            session.close()
-            return result
+            with app.app_context():
+                # Get all active channels with telegram_channel_id configured
+                channels = Channel.query.filter(
+                    Channel.is_active == True,
+                    Channel.telegram_channel_id.isnot(None)
+                ).all()
+                
+                result = []
+                for channel in channels:
+                    result.append({
+                        'id': channel.id,
+                        'name': channel.name,
+                        'telegram_channel_id': channel.telegram_channel_id
+                    })
+                
+                return result
             
         except Exception as e:
             logger.error(f"Failed to get managed channels: {e}")
@@ -675,58 +671,54 @@ class EnforcementBot:
     async def get_authorized_users_for_channel(self, channel_id: int):
         """Get users who should have access to a specific channel"""
         try:
-            if not self.Session:
-                return []
-                
-            session = self.Session()
-            
+            from app import app, db
             from models import User, Subscription, Plan, PlanChannel, Channel
             from sqlalchemy import and_
             
-            # Get users with active subscriptions that include this channel
-            authorized_users = []
-            
-            # Get all active subscriptions
-            active_subscriptions = session.query(Subscription).filter(
-                and_(
-                    Subscription.end_date > datetime.utcnow(),
-                    Subscription.is_paid == True
-                )
-            ).all()
-            
-            for subscription in active_subscriptions:
-                user = subscription.user
-                plan = subscription.plan
+            with app.app_context():
+                # Get users with active subscriptions that include this channel
+                authorized_users = []
                 
-                # Skip banned users
-                if user.is_banned:
-                    continue
-                
-                # Check if user has telegram_chat_id
-                if not user.telegram_chat_id or not user.telegram_chat_id.isdigit():
-                    continue
-                
-                telegram_user_id = int(user.telegram_chat_id)
-                
-                # Check if this plan includes the channel
-                plan_has_channel = session.query(PlanChannel).filter(
+                # Get all active subscriptions
+                active_subscriptions = Subscription.query.filter(
                     and_(
-                        PlanChannel.plan_id == plan.id,
-                        PlanChannel.channel_id == channel_id
+                        Subscription.end_date > datetime.utcnow(),
+                        Subscription.is_paid == True
                     )
-                ).first()
+                ).all()
                 
-                if plan_has_channel:
-                    authorized_users.append({
-                        'user_id': user.id,
-                        'telegram_user_id': telegram_user_id,
-                        'username': user.telegram_username,
-                        'plan_name': plan.name,
-                        'reason': f'Active subscription: {plan.name}'
-                    })
-            
-            session.close()
-            return authorized_users
+                for subscription in active_subscriptions:
+                    user = subscription.user
+                    plan = subscription.plan
+                    
+                    # Skip banned users
+                    if user.is_banned:
+                        continue
+                    
+                    # Check if user has telegram_chat_id
+                    if not user.telegram_chat_id or not user.telegram_chat_id.isdigit():
+                        continue
+                    
+                    telegram_user_id = int(user.telegram_chat_id)
+                    
+                    # Check if this plan includes the channel
+                    plan_has_channel = PlanChannel.query.filter(
+                        and_(
+                            PlanChannel.plan_id == plan.id,
+                            PlanChannel.channel_id == channel_id
+                        )
+                    ).first()
+                    
+                    if plan_has_channel:
+                        authorized_users.append({
+                            'user_id': user.id,
+                            'telegram_user_id': telegram_user_id,
+                            'username': user.telegram_username,
+                            'plan_name': plan.name,
+                            'reason': f'Active subscription: {plan.name}'
+                        })
+                
+                return authorized_users
             
         except Exception as e:
             logger.error(f"Failed to get authorized users for channel {channel_id}: {e}")
@@ -735,91 +727,87 @@ class EnforcementBot:
     async def get_banned_users_for_channel(self, channel_id: int):
         """Get users who should be banned from a specific channel"""
         try:
-            if not self.Session:
-                return []
-                
-            session = self.Session()
-            
+            from app import app, db
             from models import User, Subscription, Plan, PlanChannel, Channel
             from sqlalchemy import and_, or_
             
-            banned_users = []
-            
-            # Get users who are explicitly banned
-            banned_user_records = session.query(User).filter(User.is_banned == True).all()
-            
-            for user in banned_user_records:
-                if user.telegram_chat_id and user.telegram_chat_id.isdigit():
-                    banned_users.append({
-                        'user_id': user.id,
-                        'telegram_user_id': int(user.telegram_chat_id),
-                        'username': user.telegram_username,
-                        'reason': 'User is banned'
-                    })
-            
-            # Get users with expired subscriptions for this channel
-            expired_subscriptions = session.query(Subscription).filter(
-                or_(
-                    Subscription.end_date < datetime.utcnow(),
-                    Subscription.is_paid == False
-                )
-            ).all()
-            
-            for subscription in expired_subscriptions:
-                user = subscription.user
-                plan = subscription.plan
+            with app.app_context():
+                banned_users = []
                 
-                # Skip if user is already in banned list
-                if user.is_banned:
-                    continue
+                # Get users who are explicitly banned
+                banned_user_records = User.query.filter(User.is_banned == True).all()
                 
-                if not user.telegram_chat_id or not user.telegram_chat_id.isdigit():
-                    continue
-                
-                telegram_user_id = int(user.telegram_chat_id)
-                
-                # Check if this expired plan included the channel
-                plan_had_channel = session.query(PlanChannel).filter(
-                    and_(
-                        PlanChannel.plan_id == plan.id,
-                        PlanChannel.channel_id == channel_id
-                    )
-                ).first()
-                
-                if plan_had_channel:
-                    # Check if user has any other active subscription for this channel
-                    has_active_access = False
-                    active_subscriptions = session.query(Subscription).filter(
-                        and_(
-                            Subscription.user_id == user.id,
-                            Subscription.end_date > datetime.utcnow(),
-                            Subscription.is_paid == True
-                        )
-                    ).all()
-                    
-                    for active_sub in active_subscriptions:
-                        active_plan_has_channel = session.query(PlanChannel).filter(
-                            and_(
-                                PlanChannel.plan_id == active_sub.plan_id,
-                                PlanChannel.channel_id == channel_id
-                            )
-                        ).first()
-                        
-                        if active_plan_has_channel:
-                            has_active_access = True
-                            break
-                    
-                    # If no active access, user should be banned
-                    if not has_active_access:
+                for user in banned_user_records:
+                    if user.telegram_chat_id and user.telegram_chat_id.isdigit():
                         banned_users.append({
                             'user_id': user.id,
-                            'telegram_user_id': telegram_user_id,
+                            'telegram_user_id': int(user.telegram_chat_id),
                             'username': user.telegram_username,
-                            'reason': f'Subscription expired: {plan.name}'
+                            'reason': 'User is banned'
                         })
-            
-            session.close()
-            return banned_users
+                
+                # Get users with expired subscriptions for this channel
+                expired_subscriptions = Subscription.query.filter(
+                    or_(
+                        Subscription.end_date < datetime.utcnow(),
+                        Subscription.is_paid == False
+                    )
+                ).all()
+                
+                for subscription in expired_subscriptions:
+                    user = subscription.user
+                    plan = subscription.plan
+                    
+                    # Skip if user is already in banned list
+                    if user.is_banned:
+                        continue
+                    
+                    if not user.telegram_chat_id or not user.telegram_chat_id.isdigit():
+                        continue
+                    
+                    telegram_user_id = int(user.telegram_chat_id)
+                    
+                    # Check if this expired plan included the channel
+                    plan_had_channel = PlanChannel.query.filter(
+                        and_(
+                            PlanChannel.plan_id == plan.id,
+                            PlanChannel.channel_id == channel_id
+                        )
+                    ).first()
+                    
+                    if plan_had_channel:
+                        # Check if user has any other active subscription for this channel
+                        has_active_access = False
+                        active_subscriptions = Subscription.query.filter(
+                            and_(
+                                Subscription.user_id == user.id,
+                                Subscription.end_date > datetime.utcnow(),
+                                Subscription.is_paid == True
+                            )
+                        ).all()
+                        
+                        for active_sub in active_subscriptions:
+                            active_plan_has_channel = PlanChannel.query.filter(
+                                and_(
+                                    PlanChannel.plan_id == active_sub.plan_id,
+                                    PlanChannel.channel_id == channel_id
+                                )
+                            ).first()
+                            
+                            if active_plan_has_channel:
+                                has_active_access = True
+                                break
+                        
+                        # If no active access, user should be banned
+                        if not has_active_access:
+                            banned_users.append({
+                                'user_id': user.id,
+                                'telegram_user_id': telegram_user_id,
+                                'username': user.telegram_username,
+                                'reason': f'Subscription expired: {plan.name}'
+                            })
+                
+                return banned_users
             
         except Exception as e:
             logger.error(f"Failed to get banned users for channel {channel_id}: {e}")
@@ -828,24 +816,20 @@ class EnforcementBot:
     async def log_enforcement_stats(self, bans: int, unbans: int, errors: int):
         """Log enforcement cycle statistics"""
         try:
-            if not self.Session:
-                return
-                
-            session = self.Session()
-            
+            from app import app, db
             from models import BotLog
             
-            log_entry = BotLog(
-                action_type='enforcement_cycle',
-                reason=f'Cycle completed: {bans} bans, {unbans} unbans, {errors} errors',
-                success=errors == 0,
-                error_message=f'{errors} errors occurred' if errors > 0 else None,
-                dry_run=self.dry_run
-            )
-            
-            session.add(log_entry)
-            session.commit()
-            session.close()
+            with app.app_context():
+                log_entry = BotLog(
+                    action_type='enforcement_cycle',
+                    reason=f'Cycle completed: {bans} bans, {unbans} unbans, {errors} errors',
+                    success=errors == 0,
+                    error_message=f'{errors} errors occurred' if errors > 0 else None,
+                    dry_run=self.dry_run
+                )
+                
+                db.session.add(log_entry)
+                db.session.commit()
             
         except Exception as e:
             logger.error(f"Failed to log enforcement stats: {e}")
@@ -957,9 +941,12 @@ async def start_enforcement_bot():
         logger.error(f"Enforcement bot crashed: {e}")
 
 def run_enforcement_bot_background():
-    """Run enforcement bot in background thread"""
+    """Run enforcement bot in background thread with proper Flask context"""
     def bot_worker():
         try:
+            # Import Flask app for context
+            from app import app
+            
             # Check if credentials are available before attempting to start
             api_id = os.environ.get('TELEGRAM_API_ID')
             api_hash = os.environ.get('TELEGRAM_API_HASH')
@@ -969,8 +956,19 @@ def run_enforcement_bot_background():
                 logger.info("Configure credentials at /admin/bot-setup to activate enforcement")
                 return
             
-            # Disabled during migration - will be enabled after configuration
-            logger.info("Enforcement bot configured but disabled during migration")
+            # Create new event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            # Run bot within Flask application context
+            with app.app_context():
+                try:
+                    loop.run_until_complete(start_enforcement_bot())
+                except Exception as e:
+                    logger.error(f"Enforcement bot error: {e}")
+                finally:
+                    loop.close()
+                    
         except Exception as e:
             logger.info(f"Enforcement bot in standby mode: {e}")
             logger.info("Configure Telegram API credentials in admin panel to activate")
