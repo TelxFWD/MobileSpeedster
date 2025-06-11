@@ -539,24 +539,63 @@ def initiate_telegram_auth(api_id: str, api_hash: str, phone: str) -> Dict:
     """Initiate Telegram authentication and send OTP"""
     try:
         from telethon import TelegramClient
+        from telethon.errors import PhoneNumberInvalidError, ApiIdInvalidError, FloodWaitError
         import asyncio
+        import logging
+        
+        logger.info(f"Initiating Telegram auth for phone: {phone}")
         
         async def send_code():
-            client = TelegramClient('temp_session', int(api_id), api_hash)
-            await client.connect()
-            
-            if not await client.is_user_authorized():
-                result = await client.send_code_request(phone)
+            try:
+                client = TelegramClient('temp_session', int(api_id), api_hash)
+                await client.connect()
+                
+                logger.info("Connected to Telegram servers")
+                
+                if not await client.is_user_authorized():
+                    logger.info(f"Sending OTP code to {phone}")
+                    result = await client.send_code_request(phone)
+                    await client.disconnect()
+                    logger.info("OTP code sent successfully")
+                    return {
+                        'success': True,
+                        'phone_code_hash': result.phone_code_hash
+                    }
+                else:
+                    await client.disconnect()
+                    logger.info("User already authorized")
+                    return {
+                        'success': True,
+                        'phone_code_hash': 'already_authorized'
+                    }
+                    
+            except PhoneNumberInvalidError:
                 await client.disconnect()
+                logger.error(f"Invalid phone number format: {phone}")
                 return {
-                    'success': True,
-                    'phone_code_hash': result.phone_code_hash
+                    'success': False,
+                    'error': f"Invalid phone number format. Please use international format (e.g., +1234567890)"
                 }
-            else:
+            except ApiIdInvalidError:
                 await client.disconnect()
+                logger.error("Invalid API ID or Hash")
                 return {
-                    'success': True,
-                    'phone_code_hash': 'already_authorized'
+                    'success': False,
+                    'error': "Invalid API ID or Hash. Please check your credentials from my.telegram.org"
+                }
+            except FloodWaitError as e:
+                await client.disconnect()
+                logger.error(f"Rate limited, wait {e.seconds} seconds")
+                return {
+                    'success': False,
+                    'error': f"Too many requests. Please wait {e.seconds} seconds and try again"
+                }
+            except Exception as e:
+                await client.disconnect()
+                logger.error(f"Unexpected error during OTP request: {e}")
+                return {
+                    'success': False,
+                    'error': f"Failed to send OTP: {str(e)}"
                 }
         
         loop = asyncio.new_event_loop()
@@ -570,7 +609,7 @@ def initiate_telegram_auth(api_id: str, api_hash: str, phone: str) -> Dict:
         logger.error(f"Failed to initiate Telegram auth: {e}")
         return {
             'success': False,
-            'error': str(e)
+            'error': f"Setup error: {str(e)}"
         }
 
 

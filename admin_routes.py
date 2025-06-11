@@ -988,6 +988,27 @@ def admin_bot_setup():
                 else:
                     flash(f'Failed to send OTP: {result["error"]}', 'error')
                     
+            elif action == 'resend_otp':
+                if not session.get('temp_bot_config'):
+                    flash('No active setup session. Please start over.', 'error')
+                    return redirect(url_for('admin_bot_setup'))
+                
+                temp_config = session['temp_bot_config']
+                
+                # Resend OTP
+                from enforcement_bot import initiate_telegram_auth
+                result = initiate_telegram_auth(
+                    temp_config['api_id'],
+                    temp_config['api_hash'],
+                    temp_config['phone']
+                )
+                
+                if result['success']:
+                    session['phone_code_hash'] = result.get('phone_code_hash')
+                    flash('OTP code resent to your phone. Please check your messages.', 'success')
+                else:
+                    flash(f'Failed to resend OTP: {result["error"]}', 'error')
+                    
             elif action == 'verify_otp':
                 if not session.get('otp_required'):
                     flash('No OTP verification in progress', 'error')
