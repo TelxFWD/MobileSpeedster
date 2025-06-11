@@ -47,7 +47,7 @@ class EnforcementBot:
         self.session_path = os.path.join(self.session_dir, 'enforcement')
         
         # Safety configuration
-        self.dry_run = os.environ.get('BOT_MODE', 'dry-run') == 'dry-run'
+        self.dry_run = os.environ.get('BOT_MODE', 'live') == 'dry-run'
         self.max_actions_per_minute = 20
         self.action_delay = 3  # seconds between actions
         self.scan_interval = 300  # 5 minutes
@@ -877,12 +877,16 @@ class EnforcementBot:
         """Manually ban user from all channels"""
         results = []
         
-        for channel_id in self.managed_channels:
+        # Get current managed channels
+        channels = await self.get_managed_channels()
+        
+        for channel_info in channels:
+            channel_id = channel_info['telegram_channel_id']
             try:
                 channel_entity = await self.client.get_entity(channel_id)
                 success = await self.safe_ban_user(channel_entity, user_id, reason)
                 results.append({
-                    'channel': channel_entity.title,
+                    'channel': getattr(channel_entity, 'title', 'Unknown'),
                     'channel_id': channel_id,
                     'success': success
                 })
@@ -896,7 +900,7 @@ class EnforcementBot:
         
         return {
             'user_id': user_id,
-            'total_channels': len(self.managed_channels),
+            'total_channels': len(channels),
             'successful_bans': sum(1 for r in results if r['success']),
             'results': results
         }
@@ -905,12 +909,16 @@ class EnforcementBot:
         """Manually unban user from all channels"""
         results = []
         
-        for channel_id in self.managed_channels:
+        # Get current managed channels
+        channels = await self.get_managed_channels()
+        
+        for channel_info in channels:
+            channel_id = channel_info['telegram_channel_id']
             try:
                 channel_entity = await self.client.get_entity(channel_id)
                 success = await self.safe_unban_user(channel_entity, user_id, reason)
                 results.append({
-                    'channel': channel_entity.title,
+                    'channel': getattr(channel_entity, 'title', 'Unknown'),
                     'channel_id': channel_id,
                     'success': success
                 })
@@ -924,7 +932,7 @@ class EnforcementBot:
         
         return {
             'user_id': user_id,
-            'total_channels': len(self.managed_channels),
+            'total_channels': len(channels),
             'successful_unbans': sum(1 for r in results if r['success']),
             'results': results
         }
