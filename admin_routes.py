@@ -216,6 +216,7 @@ def create_channel():
     name = request.form.get('name', '').strip()
     description = request.form.get('description', '').strip()
     telegram_link = request.form.get('telegram_link', '').strip()
+    telegram_channel_id = request.form.get('telegram_channel_id', '').strip()
     solo_price = request.form.get('solo_price', type=float)
     solo_duration_days = request.form.get('solo_duration_days', type=int)
     show_in_custom_bundle = request.form.get('show_in_custom_bundle') == 'on'
@@ -224,10 +225,27 @@ def create_channel():
         flash('Please fill in required fields', 'error')
         return redirect(url_for('admin_channels'))
     
+    # Validate channel ID format if provided
+    if telegram_channel_id:
+        # Remove @ if present and validate format
+        if telegram_channel_id.startswith('@'):
+            telegram_channel_id = telegram_channel_id[1:]
+        elif telegram_channel_id.startswith('-100'):
+            # Numeric channel ID format is valid
+            pass
+        else:
+            # Try to parse as numeric ID
+            try:
+                int(telegram_channel_id)
+            except ValueError:
+                flash('Invalid channel ID format. Use @channelname or numeric ID', 'error')
+                return redirect(url_for('admin_channels'))
+    
     channel = Channel(
         name=name,
         description=description,
         telegram_link=telegram_link,
+        telegram_channel_id=telegram_channel_id or None,
         solo_price=solo_price,
         solo_duration_days=solo_duration_days,
         show_in_custom_bundle=show_in_custom_bundle
@@ -235,7 +253,23 @@ def create_channel():
     db.session.add(channel)
     db.session.commit()
     
-    flash('Channel created successfully!', 'success')
+    # Check bot access if channel ID is provided
+    if telegram_channel_id:
+        try:
+            from enforcement_bot import check_bot_channel_access
+            access_result = check_bot_channel_access(telegram_channel_id)
+            if access_result.get('success'):
+                if access_result.get('has_access'):
+                    flash(f'Channel created successfully! Bot has admin access to {telegram_channel_id}', 'success')
+                else:
+                    flash(f'Channel created but bot needs admin access to {telegram_channel_id}', 'warning')
+            else:
+                flash(f'Channel created but could not verify bot access: {access_result.get("error", "Unknown error")}', 'warning')
+        except Exception as e:
+            flash('Channel created but could not check bot access', 'warning')
+    else:
+        flash('Channel created successfully!', 'success')
+    
     return redirect(url_for('admin_channels'))
 
 @app.route('/admin/channel/<int:channel_id>/toggle', methods=['POST'])

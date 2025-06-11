@@ -961,3 +961,54 @@ def restart_enforcement_bot() -> Dict:
             'success': False,
             'error': str(e)
         }
+
+def reset_enforcement_session() -> Dict:
+    """Reset/delete the enforcement bot session for fresh authentication"""
+    try:
+        session_dir = os.path.join(os.getcwd(), 'sessions')
+        enforcement_session = os.path.join(session_dir, 'enforcement.session')
+        
+        # Remove session file if it exists
+        if os.path.exists(enforcement_session):
+            os.remove(enforcement_session)
+            logger.info("Enforcement bot session file deleted")
+            
+        # Remove any journal files
+        journal_file = f"{enforcement_session}-journal"
+        if os.path.exists(journal_file):
+            os.remove(journal_file)
+            
+        return {
+            'success': True, 
+            'message': 'Session reset successfully. Re-authenticate in admin panel.'
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to reset session: {e}")
+        return {'success': False, 'error': str(e)}
+
+def get_session_status() -> Dict:
+    """Get current session status and information"""
+    try:
+        session_dir = os.path.join(os.getcwd(), 'sessions')
+        enforcement_session = os.path.join(session_dir, 'enforcement.session')
+        
+        status = {
+            'session_exists': os.path.exists(enforcement_session),
+            'session_path': enforcement_session,
+            'api_configured': bool(os.environ.get('TELEGRAM_API_ID') and os.environ.get('TELEGRAM_API_HASH')),
+            'bot_running': enforcement_bot is not None
+        }
+        
+        if status['session_exists']:
+            import stat
+            file_stats = os.stat(enforcement_session)
+            status['session_size'] = file_stats.st_size
+            status['session_permissions'] = oct(stat.S_IMODE(file_stats.st_mode))
+            status['last_modified'] = file_stats.st_mtime
+        
+        return {'success': True, 'status': status}
+        
+    except Exception as e:
+        logger.error(f"Failed to get session status: {e}")
+        return {'success': False, 'error': str(e)}
