@@ -47,6 +47,7 @@ class Channel(db.Model):
     name = db.Column(db.String(128), nullable=False)
     description = db.Column(db.Text)
     telegram_link = db.Column(db.String(256), nullable=False)
+    telegram_channel_id = db.Column(db.String(64))  # Telegram channel ID for enforcement bot
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     

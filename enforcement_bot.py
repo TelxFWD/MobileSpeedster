@@ -54,21 +54,39 @@ class EnforcementBot:
         self.running = False
         
         # Database connection
-        self.engine = create_engine(os.environ.get('DATABASE_URL'))
-        self.Session = sessionmaker(bind=self.engine)
+        database_url = os.environ.get('DATABASE_URL')
+        if database_url:
+            self.engine = create_engine(database_url)
+            self.Session = sessionmaker(bind=self.engine)
+        else:
+            logger.error("DATABASE_URL not found")
+            self.engine = None
+            self.Session = None
         
         logger.info(f"Enforcement Bot initialized in {'DRY-RUN' if self.dry_run else 'LIVE'} mode")
     
     async def initialize(self):
         """Initialize Telegram client and load configuration"""
         try:
+            # Check if credentials are available
+            if not self.api_id or not self.api_hash:
+                logger.warning("Telegram API credentials not configured - bot will run in standby mode")
+                return False
+            
+            # Convert api_id to int if it's a string
+            api_id = int(self.api_id) if isinstance(self.api_id, str) else self.api_id
+            
             self.client = TelegramClient(
                 self.session_name,
-                self.api_id,
+                api_id,
                 self.api_hash
             )
             
-            await self.client.start(phone=self.phone)
+            if self.phone:
+                await self.client.start(phone=self.phone)
+            else:
+                await self.client.start()
+            
             logger.info("Telegram client connected successfully")
             
             # Load initial configuration
@@ -264,37 +282,67 @@ class EnforcementBot:
             logger.error(f"Failed to log action: {e}")
     
     async def get_users_to_ban(self) -> List[Dict]:
-        """Get users with expired subscriptions who should be banned"""
+        """Get users with expired subscriptions who should be banned from specific channels"""
         try:
+            if not self.Session:
+                return []
+                
             session = self.Session()
             
-            from models import User, Subscription
+            from models import User, Subscription, Plan, PlanChannel, Channel
             from sqlalchemy import and_, or_
             
-            # Users with expired subscriptions or no active subscriptions
-            expired_users = session.query(User).outerjoin(Subscription).filter(
+            # Get users with expired subscriptions
+            expired_subscriptions = session.query(Subscription).filter(
                 and_(
-                    User.is_active == True,
-                    User.is_banned == False,
-                    User.telegram_chat_id.isnot(None),
-                    or_(
-                        Subscription.id.is_(None),  # No subscriptions
-                        and_(
-                            Subscription.end_date < datetime.utcnow(),
-                            Subscription.is_paid == True
-                        )  # Expired paid subscriptions
-                    )
+                    Subscription.end_date < datetime.utcnow(),
+                    Subscription.is_paid == True
                 )
-            ).distinct().all()
+            ).all()
             
             result = []
-            for user in expired_users:
-                if user.telegram_chat_id and user.telegram_chat_id.isdigit():
-                    result.append({
-                        'user_id': int(user.telegram_chat_id),
-                        'username': user.telegram_username,
-                        'reason': 'Subscription expired or missing'
-                    })
+            for subscription in expired_subscriptions:
+                user = subscription.user
+                plan = subscription.plan
+                
+                if not user.telegram_chat_id or not user.telegram_chat_id.isdigit():
+                    continue
+                
+                user_id = int(user.telegram_chat_id)
+                
+                if plan.plan_type == 'bundle':
+                    # Handle bundle subscriptions - get all channels in the bundle
+                    plan_channels = session.query(PlanChannel).filter(
+                        PlanChannel.plan_id == plan.id
+                    ).all()
+                    
+                    for plan_channel in plan_channels:
+                        channel = plan_channel.channel
+                        if channel.is_active and channel.telegram_channel_id:
+                            result.append({
+                                'user_id': user_id,
+                                'username': user.telegram_username,
+                                'channel_id': channel.telegram_channel_id,
+                                'channel_name': channel.name,
+                                'reason': f'Bundle subscription expired: {plan.name}'
+                            })
+                else:
+                    # Handle solo channel subscriptions
+                    # For solo plans, check if there's a linked channel
+                    plan_channels = session.query(PlanChannel).filter(
+                        PlanChannel.plan_id == plan.id
+                    ).all()
+                    
+                    for plan_channel in plan_channels:
+                        channel = plan_channel.channel
+                        if channel.is_active and hasattr(channel, 'telegram_channel_id') and channel.telegram_channel_id:
+                            result.append({
+                                'user_id': user_id,
+                                'username': user.telegram_username,
+                                'channel_id': channel.telegram_channel_id,
+                                'channel_name': channel.name,
+                                'reason': f'Solo subscription expired: {plan.name}'
+                            })
             
             session.close()
             return result
@@ -304,31 +352,66 @@ class EnforcementBot:
             return []
     
     async def get_users_to_unban(self) -> List[Dict]:
-        """Get users with active subscriptions who should be unbanned"""
+        """Get users with active subscriptions who should be unbanned from specific channels"""
         try:
+            if not self.Session:
+                return []
+                
             session = self.Session()
             
-            from models import User, Subscription
+            from models import User, Subscription, Plan, PlanChannel, Channel
             from sqlalchemy import and_
             
-            # Users with active subscriptions who might be banned
-            active_users = session.query(User).join(Subscription).filter(
+            # Get users with active subscriptions
+            active_subscriptions = session.query(Subscription).filter(
                 and_(
-                    User.is_active == True,
-                    User.telegram_chat_id.isnot(None),
                     Subscription.end_date > datetime.utcnow(),
                     Subscription.is_paid == True
                 )
-            ).distinct().all()
+            ).all()
             
             result = []
-            for user in active_users:
-                if user.telegram_chat_id and user.telegram_chat_id.isdigit():
-                    result.append({
-                        'user_id': int(user.telegram_chat_id),
-                        'username': user.telegram_username,
-                        'reason': 'Active subscription found'
-                    })
+            for subscription in active_subscriptions:
+                user = subscription.user
+                plan = subscription.plan
+                
+                if not user.telegram_chat_id or not user.telegram_chat_id.isdigit():
+                    continue
+                
+                user_id = int(user.telegram_chat_id)
+                
+                if plan.plan_type == 'bundle':
+                    # Handle bundle subscriptions - get all channels in the bundle
+                    plan_channels = session.query(PlanChannel).filter(
+                        PlanChannel.plan_id == plan.id
+                    ).all()
+                    
+                    for plan_channel in plan_channels:
+                        channel = plan_channel.channel
+                        if channel.is_active and hasattr(channel, 'telegram_channel_id') and channel.telegram_channel_id:
+                            result.append({
+                                'user_id': user_id,
+                                'username': user.telegram_username,
+                                'channel_id': channel.telegram_channel_id,
+                                'channel_name': channel.name,
+                                'reason': f'Active bundle subscription: {plan.name}'
+                            })
+                else:
+                    # Handle solo channel subscriptions
+                    plan_channels = session.query(PlanChannel).filter(
+                        PlanChannel.plan_id == plan.id
+                    ).all()
+                    
+                    for plan_channel in plan_channels:
+                        channel = plan_channel.channel
+                        if channel.is_active and hasattr(channel, 'telegram_channel_id') and channel.telegram_channel_id:
+                            result.append({
+                                'user_id': user_id,
+                                'username': user.telegram_username,
+                                'channel_id': channel.telegram_channel_id,
+                                'channel_name': channel.name,
+                                'reason': f'Active solo subscription: {plan.name}'
+                            })
             
             session.close()
             return result
