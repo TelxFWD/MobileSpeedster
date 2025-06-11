@@ -955,7 +955,15 @@ def admin_bot_setup():
         try:
             action = request.form.get('action')
             
-            if action == 'submit_credentials':
+            if action == 'cancel_setup':
+                # Clear session data
+                session.pop('temp_bot_config', None)
+                session.pop('otp_required', None)
+                session.pop('phone_code_hash', None)
+                flash('Bot setup cancelled', 'info')
+                return redirect(url_for('admin_bot_setup'))
+            
+            elif action == 'submit_credentials':
                 # Store credentials temporarily in session for OTP verification
                 session['temp_bot_config'] = {
                     'api_id': request.form.get('api_id'),

@@ -143,10 +143,13 @@
                     </form>
                     
                     <!-- Cancel Button -->
-                    <a href="{{ url_for('admin_bot_setup') }}" 
-                       class="block w-full mt-4 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg transition-colors text-center">
-                        Cancel Setup
-                    </a>
+                    <form method="POST" class="mt-4">
+                        <input type="hidden" name="action" value="cancel_setup">
+                        <button type="submit"
+                                class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                            Cancel Setup
+                        </button>
+                    </form>
                 </div>
                 {% endif %}
 
