@@ -335,7 +335,7 @@ class EnforcementBot:
                     
                     for plan_channel in plan_channels:
                         channel = plan_channel.channel
-                        if channel.is_active and hasattr(channel, 'telegram_channel_id') and channel.telegram_channel_id:
+                        if channel.is_active and channel.telegram_channel_id:
                             result.append({
                                 'user_id': user_id,
                                 'username': user.telegram_username,
@@ -388,7 +388,7 @@ class EnforcementBot:
                     
                     for plan_channel in plan_channels:
                         channel = plan_channel.channel
-                        if channel.is_active and hasattr(channel, 'telegram_channel_id') and channel.telegram_channel_id:
+                        if channel.is_active and channel.telegram_channel_id:
                             result.append({
                                 'user_id': user_id,
                                 'username': user.telegram_username,
@@ -404,7 +404,7 @@ class EnforcementBot:
                     
                     for plan_channel in plan_channels:
                         channel = plan_channel.channel
-                        if channel.is_active and hasattr(channel, 'telegram_channel_id') and channel.telegram_channel_id:
+                        if channel.is_active and channel.telegram_channel_id:
                             result.append({
                                 'user_id': user_id,
                                 'username': user.telegram_username,
@@ -464,22 +464,79 @@ class EnforcementBot:
             logger.error(f"Failed to enforce channel {channel_id}: {e}")
     
     async def enforcement_cycle(self):
-        """Single enforcement cycle across all channels"""
+        """Single enforcement cycle with bundle-aware channel enforcement"""
         try:
-            logger.info("Starting enforcement cycle")
+            logger.info("Starting bundle-aware enforcement cycle")
             
-            # Sync channels and whitelist
-            await self.sync_channels()
-            await self.load_whitelisted_users()
+            if not self.client:
+                logger.warning("Telegram client not available - skipping enforcement")
+                return
             
-            # Process each channel
-            for channel_id in self.managed_channels:
-                await self.enforce_channel(channel_id)
-                
-                # Small delay between channels
-                await asyncio.sleep(2)
+            # Get users to ban and unban based on bundle subscriptions
+            users_to_ban = await self.get_users_to_ban()
+            users_to_unban = await self.get_users_to_unban()
             
-            logger.info("Enforcement cycle completed")
+            # Group actions by channel
+            channel_ban_actions = {}
+            channel_unban_actions = {}
+            
+            for user_data in users_to_ban:
+                channel_id = user_data['channel_id']
+                if channel_id not in channel_ban_actions:
+                    channel_ban_actions[channel_id] = []
+                channel_ban_actions[channel_id].append(user_data)
+            
+            for user_data in users_to_unban:
+                channel_id = user_data['channel_id']
+                if channel_id not in channel_unban_actions:
+                    channel_unban_actions[channel_id] = []
+                channel_unban_actions[channel_id].append(user_data)
+            
+            # Process each channel with its specific actions
+            all_channels = set(list(channel_ban_actions.keys()) + list(channel_unban_actions.keys()))
+            
+            for channel_id in all_channels:
+                try:
+                    # Get channel entity
+                    channel_entity = await self.client.get_entity(channel_id)
+                    logger.info(f"Processing channel: {getattr(channel_entity, 'title', channel_id)}")
+                    
+                    # Process bans for this channel
+                    ban_actions = channel_ban_actions.get(channel_id, [])
+                    ban_count = 0
+                    for user_data in ban_actions:
+                        if user_data['user_id'] not in self.whitelisted_users:
+                            success = await self.safe_ban_user(
+                                channel_entity, 
+                                user_data['user_id'], 
+                                user_data['reason']
+                            )
+                            if success:
+                                ban_count += 1
+                        else:
+                            logger.info(f"Skipping ban for whitelisted user {user_data['user_id']}")
+                    
+                    # Process unbans for this channel
+                    unban_actions = channel_unban_actions.get(channel_id, [])
+                    unban_count = 0
+                    for user_data in unban_actions:
+                        success = await self.safe_unban_user(
+                            channel_entity, 
+                            user_data['user_id'], 
+                            user_data['reason']
+                        )
+                        if success:
+                            unban_count += 1
+                    
+                    logger.info(f"Channel {channel_id}: {ban_count} bans, {unban_count} unbans")
+                    
+                    # Rate limiting delay
+                    await asyncio.sleep(self.action_delay)
+                    
+                except Exception as e:
+                    logger.error(f"Failed to process channel {channel_id}: {e}")
+            
+            logger.info("Bundle-aware enforcement cycle completed")
             
         except Exception as e:
             logger.error(f"Enforcement cycle failed: {e}")
