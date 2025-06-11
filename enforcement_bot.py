@@ -1286,6 +1286,17 @@ def check_bot_channel_access(channel_id: str) -> Dict:
                 'error': 'Enforcement bot not initialized. Configure Telegram API credentials first.'
             }
         
+        # Use the existing event loop or get the running one
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # No running loop, create a new one
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            should_close = True
+        else:
+            should_close = False
+        
         # Handle event loop properly for Flask/threading environment
         async def check_access():
             try:
