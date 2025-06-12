@@ -543,6 +543,64 @@ class EnforcementBot:
         except Exception as e:
             logger.error(f"Failed to enforce channel {channel_id}: {e}")
     
+    async def enforce_unauthorized_users(self, channel_entity, channel_id: int, authorized_user_ids: set) -> tuple[int, int]:
+        """Ban all unauthorized users currently in the channel"""
+        bans = 0
+        errors = 0
+        
+        try:
+            # Get bot's own user ID to avoid self-ban
+            me = await self.client.get_me()
+            bot_user_id = me.id
+            
+            # Iterate through all channel participants
+            async for participant in self.client.iter_participants(channel_entity):
+                # Skip bots
+                if participant.bot:
+                    continue
+                    
+                # Skip channel admins and creators
+                if hasattr(participant, 'participant'):
+                    if hasattr(participant.participant, 'admin_rights') or \
+                       hasattr(participant.participant, 'creator'):
+                        continue
+                
+                user_id = participant.id
+                
+                # Skip bot itself
+                if user_id == bot_user_id:
+                    continue
+                
+                # Skip whitelisted users
+                if user_id in self.whitelisted_users:
+                    continue
+                    
+                # Skip authorized users for this channel
+                if user_id in authorized_user_ids:
+                    continue
+                
+                # User is unauthorized - ban them
+                if await self.rate_limit_check():
+                    success = await self.safe_ban_user(
+                        channel_entity, 
+                        user_id, 
+                        "Unauthorized access - no active subscription"
+                    )
+                    if success:
+                        bans += 1
+                    else:
+                        errors += 1
+                else:
+                    # Rate limit hit, skip remaining users for this channel
+                    logger.warning(f"Rate limit reached, skipping remaining users in channel")
+                    break
+                    
+        except Exception as e:
+            logger.error(f"Error enforcing unauthorized users in channel {channel_id}: {e}")
+            errors += 1
+            
+        return bans, errors
+
     async def enforcement_cycle(self):
         """Enhanced enforcement cycle with comprehensive subscription management"""
         try:
@@ -562,6 +620,7 @@ class EnforcementBot:
             # Statistics tracking
             total_bans = 0
             total_unbans = 0
+            total_unauthorized_bans = 0
             total_errors = 0
             
             # Process each channel individually for better control
@@ -655,6 +714,11 @@ class EnforcementBot:
                     # Get users who should have access to this specific channel
                     authorized_users = await self.get_authorized_users_for_channel(channel_info['db_id'])
                     
+                    # Convert authorized users to a set of IDs for fast O(1) lookup
+                    authorized_user_ids = set()
+                    if authorized_users:
+                        authorized_user_ids = {user_data['telegram_user_id'] for user_data in authorized_users}
+                    
                     # Get users who should be banned from this specific channel
                     banned_users = await self.get_banned_users_for_channel(channel_info['db_id'])
                     
@@ -684,8 +748,17 @@ class EnforcementBot:
                             else:
                                 total_errors += 1
                     
+                    # NEW: Enforce unauthorized users - ban ALL users currently in channel who shouldn't be there
+                    unauthorized_bans, unauthorized_errors = await self.enforce_unauthorized_users(
+                        channel_entity, 
+                        channel_info['db_id'], 
+                        authorized_user_ids
+                    )
+                    total_unauthorized_bans += unauthorized_bans
+                    total_errors += unauthorized_errors
+                    
                     # Log channel processing completion
-                    logger.info(f"Channel {channel_name} processed: {len(banned_users)} bans, {len(authorized_users)} unbans")
+                    logger.info(f"Channel {channel_name} processed: {len(banned_users)} subscription bans, {len(authorized_users)} unbans, {unauthorized_bans} unauthorized bans")
                     
                 except Exception as e:
                     logger.error(f"Failed to process channel {channel_name}: {e}")
@@ -693,10 +766,10 @@ class EnforcementBot:
                     continue
             
             # Log cycle completion
-            logger.info(f"Enforcement cycle completed: {total_bans} bans, {total_unbans} unbans, {total_errors} errors")
+            logger.info(f"Enforcement cycle completed: {total_bans} subscription bans, {total_unbans} unbans, {total_unauthorized_bans} unauthorized bans, {total_errors} errors")
             
             # Store enforcement statistics
-            await self.log_enforcement_stats(total_bans, total_unbans, total_errors)
+            await self.log_enforcement_stats(total_bans + total_unauthorized_bans, total_unbans, total_errors)
             
         except Exception as e:
             logger.error(f"Enforcement cycle failed: {e}")
