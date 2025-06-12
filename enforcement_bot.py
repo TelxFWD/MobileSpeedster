@@ -212,28 +212,47 @@ class EnforcementBot:
     async def load_whitelisted_users(self):
         """Load whitelisted users from database"""
         try:
-            session = self.Session()
+            from app import app, db
+            from models import User, Admin, Subscription
+            from sqlalchemy import and_
             
-            # Import here to avoid circular imports
-            from models import User
-            
-            # Load admin users and other whitelisted users
-            # You can add a whitelist field to User model or create separate table
-            whitelisted = session.query(User).filter(
-                User.is_active == True,
-                User.is_banned == False
-            ).all()
-            
-            self.whitelisted_users = {
-                int(user.telegram_chat_id) for user in whitelisted 
-                if user.telegram_chat_id and user.telegram_chat_id.isdigit()
-            }
-            
-            logger.info(f"Loaded {len(self.whitelisted_users)} whitelisted users")
-            session.close()
+            with app.app_context():
+                whitelisted_ids = set()
+                
+                # Add admin users to whitelist
+                try:
+                    admins = Admin.query.filter(Admin.is_active == True).all()
+                    for admin in admins:
+                        if hasattr(admin, 'telegram_chat_id') and admin.telegram_chat_id and admin.telegram_chat_id.isdigit():
+                            whitelisted_ids.add(int(admin.telegram_chat_id))
+                            logger.debug(f"Added admin {admin.username} to whitelist")
+                except Exception as e:
+                    logger.warning(f"Could not load admin users: {e}")
+                
+                # Add users with active subscriptions to whitelist 
+                try:
+                    active_subscriptions = Subscription.query.filter(
+                        and_(
+                            Subscription.end_date > datetime.utcnow(),
+                            Subscription.is_paid == True
+                        )
+                    ).all()
+                    
+                    for subscription in active_subscriptions:
+                        user = subscription.user
+                        if user.telegram_chat_id and user.telegram_chat_id.isdigit():
+                            whitelisted_ids.add(int(user.telegram_chat_id))
+                            logger.debug(f"Added user {user.username} with active subscription to whitelist")
+                            
+                except Exception as e:
+                    logger.warning(f"Could not load users with active subscriptions: {e}")
+                
+                self.whitelisted_users = whitelisted_ids
+                logger.info(f"Loaded {len(self.whitelisted_users)} whitelisted users (admins + active subscribers)")
             
         except Exception as e:
             logger.error(f"Failed to load whitelisted users: {e}")
+            self.whitelisted_users = set()
     
     async def rate_limit_check(self):
         """Check and enforce rate limiting"""
@@ -580,20 +599,16 @@ class EnforcementBot:
                     continue
                 
                 # User is unauthorized - ban them
-                if await self.rate_limit_check():
-                    success = await self.safe_ban_user(
-                        channel_entity, 
-                        user_id, 
-                        "Unauthorized access - no active subscription"
-                    )
-                    if success:
-                        bans += 1
-                    else:
-                        errors += 1
+                await self.rate_limit_check()
+                success = await self.safe_ban_user(
+                    channel_entity, 
+                    user_id, 
+                    "Unauthorized access - no active subscription"
+                )
+                if success:
+                    bans += 1
                 else:
-                    # Rate limit hit, skip remaining users for this channel
-                    logger.warning(f"Rate limit reached, skipping remaining users in channel")
-                    break
+                    errors += 1
                     
         except Exception as e:
             logger.error(f"Error enforcing unauthorized users in channel {channel_id}: {e}")
@@ -612,6 +627,9 @@ class EnforcementBot:
             
             # Refresh channel list from database
             await self.sync_channels()
+            
+            # Load whitelisted users (admins + active subscribers)
+            await self.load_whitelisted_users()
             
             if not self.managed_channels:
                 logger.info("No channels configured for enforcement")
