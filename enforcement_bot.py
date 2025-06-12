@@ -589,10 +589,50 @@ class EnforcementBot:
                             total_errors += 1
                             continue
                     
-                    # Try to get channel entity with better error handling
+                    # Try to get channel entity with better error handling and alternative methods
                     try:
-                        channel_entity = await self.client.get_entity(channel_id)
-                        logger.debug(f"Successfully found channel: {channel_entity.title}")
+                        # First try to get entity directly
+                        try:
+                            channel_entity = await self.client.get_entity(channel_id)
+                            logger.debug(f"Successfully found channel: {channel_entity.title}")
+                        except ValueError as ve:
+                            if "Cannot find any entity" in str(ve):
+                                logger.info(f"Direct entity lookup failed for {channel_id}, trying alternative methods...")
+                                
+                                # Try to get entity using input peer
+                                try:
+                                    from telethon.tl.types import InputPeerChannel
+                                    # Extract channel ID and access hash (we'll use 0 for access hash and let Telegram resolve it)
+                                    if channel_id.startswith('-100'):
+                                        numeric_id = int(channel_id[4:])  # Remove -100 prefix
+                                        input_peer = InputPeerChannel(numeric_id, 0)
+                                        channel_entity = await self.client.get_entity(input_peer)
+                                        logger.info(f"Successfully resolved channel using InputPeer: {channel_entity.title}")
+                                    else:
+                                        raise ValueError("Invalid channel ID format")
+                                except Exception as input_peer_error:
+                                    logger.warning(f"InputPeer method failed: {input_peer_error}")
+                                    
+                                    # Try getting dialogs to find the channel
+                                    try:
+                                        logger.info(f"Searching for channel {channel_id} in dialogs...")
+                                        async for dialog in self.client.iter_dialogs():
+                                            if hasattr(dialog.entity, 'id'):
+                                                # Convert entity ID to channel format for comparison
+                                                if hasattr(dialog.entity, 'megagroup') or hasattr(dialog.entity, 'broadcast'):
+                                                    entity_channel_id = f"-100{dialog.entity.id}"
+                                                    if entity_channel_id == channel_id:
+                                                        channel_entity = dialog.entity
+                                                        logger.info(f"Found channel in dialogs: {channel_entity.title}")
+                                                        break
+                                        else:
+                                            raise ValueError(f"Channel {channel_id} not found in dialogs")
+                                    except Exception as dialog_error:
+                                        logger.error(f"Dialog search failed: {dialog_error}")
+                                        raise ve  # Re-raise original error
+                            else:
+                                raise ve
+                                
                     except errors.UsernameNotOccupiedError:
                         logger.error(f"Channel username {channel_id} does not exist or is invalid")
                         total_errors += 1
@@ -602,15 +642,10 @@ class EnforcementBot:
                         total_errors += 1
                         continue
                     except ValueError as ve:
-                        if "Cannot find any entity" in str(ve):
-                            logger.warning(f"Channel {channel_id} entity not found. Bot may not be added to channel or channel may be private")
-                            logger.info(f"Skipping channel {channel_name} - ensure bot is added as admin")
-                            total_errors += 1
-                            continue
-                        else:
-                            logger.error(f"Channel validation error for {channel_id}: {ve}")
-                            total_errors += 1
-                            continue
+                        logger.warning(f"Channel {channel_id} entity not found. Bot may not be added to channel or channel may be private")
+                        logger.info(f"Skipping channel {channel_name} - ensure bot is added as admin")
+                        total_errors += 1
+                        continue
                     except Exception as entity_error:
                         logger.error(f"Cannot access channel {channel_id}: {entity_error}")
                         logger.warning(f"Bot may need to be added to channel {channel_id} as admin")
@@ -691,6 +726,42 @@ class EnforcementBot:
             
         except Exception as e:
             logger.error(f"Failed to get managed channels: {e}")
+            return []
+
+    async def list_accessible_channels(self):
+        """List all channels/groups the bot can access for debugging"""
+        try:
+            if not self.client:
+                logger.error("Telegram client not available")
+                return []
+            
+            accessible_channels = []
+            logger.info("Listing all accessible channels/groups...")
+            
+            async for dialog in self.client.iter_dialogs():
+                if hasattr(dialog.entity, 'id'):
+                    entity_type = type(dialog.entity).__name__
+                    entity_id = dialog.entity.id
+                    entity_title = getattr(dialog.entity, 'title', 'Unknown')
+                    
+                    # Check if it's a channel or supergroup
+                    if hasattr(dialog.entity, 'megagroup') or hasattr(dialog.entity, 'broadcast'):
+                        channel_id = f"-100{entity_id}"
+                        accessible_channels.append({
+                            'title': entity_title,
+                            'id': entity_id,
+                            'channel_id': channel_id,
+                            'type': entity_type,
+                            'is_megagroup': getattr(dialog.entity, 'megagroup', False),
+                            'is_broadcast': getattr(dialog.entity, 'broadcast', False)
+                        })
+                        logger.info(f"Found channel: {entity_title} ({channel_id}) - Type: {entity_type}")
+            
+            logger.info(f"Total accessible channels: {len(accessible_channels)}")
+            return accessible_channels
+            
+        except Exception as e:
+            logger.error(f"Failed to list accessible channels: {e}")
             return []
 
     async def get_authorized_users_for_channel(self, channel_id: int):
@@ -1396,8 +1467,35 @@ def check_bot_channel_access(channel_id: str) -> Dict:
         # Handle event loop properly for Flask/threading environment
         async def check_access():
             try:
-                # Get channel entity
-                channel_entity = await enforcement_bot.client.get_entity(channel_id)
+                # Get channel entity with improved resolution
+                channel_entity = None
+                
+                try:
+                    channel_entity = await enforcement_bot.client.get_entity(channel_id)
+                except ValueError as ve:
+                    if "Cannot find any entity" in str(ve):
+                        logger.info(f"Direct lookup failed for {channel_id}, searching in dialogs...")
+                        
+                        # Search in dialogs
+                        async for dialog in enforcement_bot.client.iter_dialogs():
+                            if hasattr(dialog.entity, 'id'):
+                                if hasattr(dialog.entity, 'megagroup') or hasattr(dialog.entity, 'broadcast'):
+                                    entity_channel_id = f"-100{dialog.entity.id}"
+                                    if entity_channel_id == channel_id:
+                                        channel_entity = dialog.entity
+                                        logger.info(f"Found channel in dialogs: {channel_entity.title}")
+                                        break
+                        
+                        if not channel_entity:
+                            raise ValueError(f"Channel {channel_id} not found in accessible channels")
+                    else:
+                        raise ve
+                
+                if not channel_entity:
+                    return {
+                        'success': False,
+                        'error': 'Channel entity could not be resolved'
+                    }
                 
                 # Get bot's permissions in the channel
                 permissions = await enforcement_bot.client.get_permissions(channel_entity, 'me')
@@ -1413,7 +1511,8 @@ def check_bot_channel_access(channel_id: str) -> Dict:
                     'can_ban': can_ban,
                     'can_invite': can_invite,
                     'channel_title': getattr(channel_entity, 'title', 'Unknown'),
-                    'channel_type': type(channel_entity).__name__
+                    'channel_type': type(channel_entity).__name__,
+                    'entity_id': getattr(channel_entity, 'id', 'Unknown')
                 }
                 
             except errors.ChannelPrivateError:

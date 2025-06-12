@@ -1,0 +1,108 @@
+
+{% extends "admin/base.html" %}
+
+{% block title %}Debug Channels - Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-bug mr-2"></i>
+                        Debug: Accessible Channels
+                    </h3>
+                    <div class="card-tools">
+                        <a href="{{ url_for('admin_channels') }}" class="btn btn-secondary btn-sm">
+                            <i class="fas fa-arrow-left"></i> Back to Channels
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if accessible_channels %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            Found {{ accessible_channels|length }} accessible channels/groups
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Title</th>
+                                        <th>Channel ID</th>
+                                        <th>Entity ID</th>
+                                        <th>Type</th>
+                                        <th>Megagroup</th>
+                                        <th>Broadcast</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for channel in accessible_channels %}
+                                    <tr>
+                                        <td>{{ channel.title }}</td>
+                                        <td>
+                                            <code>{{ channel.channel_id }}</code>
+                                            <button class="btn btn-sm btn-outline-secondary ml-2" 
+                                                    onclick="copyToClipboard('{{ channel.channel_id }}')">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                        </td>
+                                        <td><code>{{ channel.id }}</code></td>
+                                        <td>{{ channel.type }}</td>
+                                        <td>
+                                            {% if channel.is_megagroup %}
+                                                <span class="badge badge-success">Yes</span>
+                                            {% else %}
+                                                <span class="badge badge-secondary">No</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if channel.is_broadcast %}
+                                                <span class="badge badge-primary">Yes</span>
+                                            {% else %}
+                                                <span class="badge badge-secondary">No</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            No accessible channels found. This could mean:
+                            <ul class="mt-2 mb-0">
+                                <li>The bot is not connected to Telegram</li>
+                                <li>The bot has not been added to any channels</li>
+                                <li>There's an authentication issue</li>
+                            </ul>
+                        </div>
+                    {% endif %}
+                    
+                    <div class="mt-4">
+                        <h5>How to use this information:</h5>
+                        <ul>
+                            <li>Copy the <strong>Channel ID</strong> and use it in your channel configuration</li>
+                            <li>Make sure the channel type is appropriate (Channel or Megagroup)</li>
+                            <li>Ensure the bot has admin permissions in the target channel</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(function() {
+        alert('Channel ID copied to clipboard: ' + text);
+    }, function(err) {
+        console.error('Could not copy text: ', err);
+    });
+}
+</script>
+{% endblock %}

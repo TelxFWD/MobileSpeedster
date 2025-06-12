@@ -1253,6 +1253,39 @@ def check_single_channel_access_post(channel_id):
             'error': str(e)
         })
 
+@app.route('/admin/debug-channels')
+@admin_required
+def debug_channels():
+    """Debug accessible channels"""
+    try:
+        from enforcement_bot import get_enforcement_bot
+        import asyncio
+        import concurrent.futures
+        
+        def run_debug():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                bot = asyncio.run_coroutine_threadsafe(get_enforcement_bot(), loop).result(timeout=10)
+                if bot and bot.client:
+                    channels = asyncio.run_coroutine_threadsafe(bot.list_accessible_channels(), loop).result(timeout=30)
+                    return channels
+                else:
+                    return []
+            finally:
+                loop.close()
+        
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(run_debug)
+            accessible_channels = future.result(timeout=60)
+        
+        return render_template('admin/debug_channels.html', 
+                             accessible_channels=accessible_channels)
+        
+    except Exception as e:
+        flash(f'Error debugging channels: {str(e)}', 'error')
+        return redirect(url_for('admin_channels'))
+
 @app.route('/admin/enforcement-settings', methods=['GET', 'POST'])
 @admin_required
 def admin_enforcement_settings():
