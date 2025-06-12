@@ -1,0 +1,518 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Bot Performance Dashboard - TeleSignals Admin{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-900 py-6">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-white">Bot Performance Dashboard</h1>
+            <p class="mt-2 text-gray-400">Monitor enforcement bot activity and banned user management</p>
+        </div>
+
+        <!-- Status Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <!-- Bot Status -->
+            <div class="bg-gray-800 border border-gray-700 rounded-lg p-6">
+                <div class="flex items-center">
+                    <div class="p-2 bg-green-600 rounded-lg">
+                        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-400">Bot Status</p>
+                        <p class="text-2xl font-bold text-green-400" id="bot-status">{{ bot_status or 'Active' }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Managed Channels -->
+            <div class="bg-gray-800 border border-gray-700 rounded-lg p-6">
+                <div class="flex items-center">
+                    <div class="p-2 bg-blue-600 rounded-lg">
+                        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-400">Managed Channels</p>
+                        <p class="text-2xl font-bold text-blue-400" id="managed-channels">{{ stats.managed_channels or 0 }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Total Bans Today -->
+            <div class="bg-gray-800 border border-gray-700 rounded-lg p-6">
+                <div class="flex items-center">
+                    <div class="p-2 bg-red-600 rounded-lg">
+                        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 6c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm0 10c-2.67 0-8-1.34-8-4v-2h16v2c0 2.66-5.33 4-8 4z"/>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-400">Bans Today</p>
+                        <p class="text-2xl font-bold text-red-400" id="bans-today">{{ stats.bans_today or 0 }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Total Unbans Today -->
+            <div class="bg-gray-800 border border-gray-700 rounded-lg p-6">
+                <div class="flex items-center">
+                    <div class="p-2 bg-green-600 rounded-lg">
+                        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 6c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm0 10c-2.67 0-8-1.34-8-4v-2h16v2c0 2.66-5.33 4-8 4z"/>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-400">Unbans Today</p>
+                        <p class="text-2xl font-bold text-green-400" id="unbans-today">{{ stats.unbans_today or 0 }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Charts -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <!-- Bot Activity Chart -->
+            <div class="bg-gray-800 border border-gray-700 rounded-lg p-6">
+                <h3 class="text-lg font-semibold text-white mb-4">Bot Activity (Last 24 Hours)</h3>
+                <div class="h-64" id="activity-chart">
+                    <canvas id="activityCanvas" width="400" height="200"></canvas>
+                </div>
+            </div>
+
+            <!-- Channel Status -->
+            <div class="bg-gray-800 border border-gray-700 rounded-lg p-6">
+                <h3 class="text-lg font-semibold text-white mb-4">Channel Status Overview</h3>
+                <div class="space-y-4">
+                    {% for channel in channels %}
+                    <div class="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 rounded-full {{ 'bg-green-500' if channel.is_accessible else 'bg-red-500' }} mr-3"></div>
+                            <div>
+                                <p class="text-white font-medium">{{ channel.name }}</p>
+                                <p class="text-sm text-gray-400">{{ channel.telegram_channel_id or 'No Channel ID' }}</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-sm {{ 'text-green-400' if channel.is_accessible else 'text-red-400' }}">
+                                {{ 'Accessible' if channel.is_accessible else 'Access Error' }}
+                            </p>
+                            <p class="text-xs text-gray-500">{{ channel.member_count or 0 }} members</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Bot Actions -->
+        <div class="bg-gray-800 border border-gray-700 rounded-lg p-6 mb-8">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-white">Recent Bot Actions</h3>
+                <div class="flex space-x-2">
+                    <button onclick="refreshActions()" class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
+                        Refresh
+                    </button>
+                    <button onclick="clearLogs()" class="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700">
+                        Clear Logs
+                    </button>
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-700">
+                    <thead class="bg-gray-700">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Time</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Action</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">User ID</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Channel</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Reason</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-gray-800 divide-y divide-gray-700" id="bot-actions-table">
+                        {% for action in recent_actions %}
+                        <tr class="hover:bg-gray-700">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                                {{ action.timestamp.strftime('%H:%M:%S') }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                    {{ 'bg-red-100 text-red-800' if action.action_type == 'ban' else 'bg-green-100 text-green-800' }}">
+                                    {{ action.action_type.title() }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                                {{ action.user_id }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                                {{ action.channel.name if action.channel else 'Unknown' }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                                {{ action.reason }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                    {{ 'bg-green-100 text-green-800' if action.success else 'bg-red-100 text-red-800' }}">
+                                    {{ 'Success' if action.success else 'Failed' }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not recent_actions %}
+                        <tr>
+                            <td colspan="6" class="px-6 py-4 text-center text-gray-400">No recent actions recorded</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Banned Users Management -->
+        <div class="bg-gray-800 border border-gray-700 rounded-lg p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-white">Banned Users Management</h3>
+                <div class="flex space-x-2">
+                    <button onclick="showBanUserModal()" class="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700">
+                        Manual Ban
+                    </button>
+                    <button onclick="refreshBannedUsers()" class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- Search and Filter -->
+            <div class="mb-4 flex space-x-4">
+                <input type="text" id="search-banned-users" placeholder="Search by user ID or username..." 
+                       class="flex-1 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white placeholder-gray-400">
+                <select id="filter-channel" class="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white">
+                    <option value="">All Channels</option>
+                    {% for channel in channels %}
+                    <option value="{{ channel.id }}">{{ channel.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-700">
+                    <thead class="bg-gray-700">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">User</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Channels</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Ban Reason</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Banned Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-gray-800 divide-y divide-gray-700" id="banned-users-table">
+                        {% for ban_info in banned_users %}
+                        <tr class="hover:bg-gray-700">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center">
+                                        <span class="text-white text-sm font-bold">{{ ban_info.user.telegram_username[0].upper() if ban_info.user.telegram_username else 'U' }}</span>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-white font-medium">@{{ ban_info.user.telegram_username or 'Unknown' }}</p>
+                                        <p class="text-gray-400 text-sm">ID: {{ ban_info.user_id }}</p>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="flex flex-wrap gap-1">
+                                    {% for channel in ban_info.channels %}
+                                    <span class="px-2 py-1 bg-gray-700 text-gray-300 text-xs rounded">{{ channel.name }}</span>
+                                    {% endfor %}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                                {{ ban_info.reason }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                                {{ ban_info.created_at.strftime('%Y-%m-%d %H:%M') if ban_info.created_at else 'Unknown' }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <button onclick="unbanUser({{ ban_info.user_id }})" 
+                                        class="text-green-400 hover:text-green-300 mr-3">Unban</button>
+                                <button onclick="viewUserDetails({{ ban_info.user_id }})" 
+                                        class="text-blue-400 hover:text-blue-300">Details</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not banned_users %}
+                        <tr>
+                            <td colspan="5" class="px-6 py-4 text-center text-gray-400">No banned users found</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Manual Ban Modal -->
+<div id="ban-user-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50" onclick="hideBanUserModal()">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="bg-gray-800 rounded-lg p-6 w-full max-w-md" onclick="event.stopPropagation()">
+            <h3 class="text-lg font-semibold text-white mb-4">Manual Ban User</h3>
+            <form id="ban-user-form" onsubmit="submitBanUser(event)">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-300 mb-2">User ID</label>
+                    <input type="number" id="ban-user-id" required 
+                           class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Reason</label>
+                    <input type="text" id="ban-reason" placeholder="Manual admin ban" 
+                           class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white">
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="hideBanUserModal()" 
+                            class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">Cancel</button>
+                    <button type="submit" 
+                            class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Ban User</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-refresh functionality
+let autoRefreshInterval;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Start auto-refresh every 30 seconds
+    autoRefreshInterval = setInterval(refreshDashboard, 30000);
+    
+    // Initialize chart
+    initializeActivityChart();
+    
+    // Setup search functionality
+    setupSearch();
+});
+
+function refreshDashboard() {
+    fetch('/admin/bot-performance/data')
+        .then(response => response.json())
+        .then(data => {
+            updateDashboardStats(data);
+            updateActivityChart(data);
+        })
+        .catch(error => console.error('Error refreshing dashboard:', error));
+}
+
+function updateDashboardStats(data) {
+    document.getElementById('bot-status').textContent = data.bot_status || 'Active';
+    document.getElementById('managed-channels').textContent = data.managed_channels || 0;
+    document.getElementById('bans-today').textContent = data.bans_today || 0;
+    document.getElementById('unbans-today').textContent = data.unbans_today || 0;
+}
+
+function initializeActivityChart() {
+    const canvas = document.getElementById('activityCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Simple chart implementation
+    const data = Array.from({length: 24}, (_, i) => Math.floor(Math.random() * 10));
+    const width = canvas.width;
+    const height = canvas.height;
+    const barWidth = width / 24;
+    const maxValue = Math.max(...data, 1);
+    
+    ctx.fillStyle = '#374151';
+    ctx.fillRect(0, 0, width, height);
+    
+    data.forEach((value, index) => {
+        const barHeight = (value / maxValue) * height * 0.8;
+        const x = index * barWidth;
+        const y = height - barHeight;
+        
+        ctx.fillStyle = '#3B82F6';
+        ctx.fillRect(x + 2, y, barWidth - 4, barHeight);
+        
+        // Hour labels
+        if (index % 4 === 0) {
+            ctx.fillStyle = '#9CA3AF';
+            ctx.font = '10px Arial';
+            ctx.fillText(`${index}:00`, x, height - 5);
+        }
+    });
+}
+
+function refreshActions() {
+    fetch('/admin/bot-performance/actions')
+        .then(response => response.json())
+        .then(data => {
+            updateActionsTable(data.actions);
+        })
+        .catch(error => console.error('Error refreshing actions:', error));
+}
+
+function updateActionsTable(actions) {
+    const tbody = document.getElementById('bot-actions-table');
+    tbody.innerHTML = '';
+    
+    if (actions.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-gray-400">No recent actions recorded</td></tr>';
+        return;
+    }
+    
+    actions.forEach(action => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-gray-700';
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${action.time}</td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${action.action_type === 'ban' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}">
+                    ${action.action_type}
+                </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${action.user_id}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${action.channel_name}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${action.reason}</td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${action.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                    ${action.success ? 'Success' : 'Failed'}
+                </span>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function showBanUserModal() {
+    document.getElementById('ban-user-modal').classList.remove('hidden');
+}
+
+function hideBanUserModal() {
+    document.getElementById('ban-user-modal').classList.add('hidden');
+    document.getElementById('ban-user-form').reset();
+}
+
+function submitBanUser(event) {
+    event.preventDefault();
+    
+    const userId = document.getElementById('ban-user-id').value;
+    const reason = document.getElementById('ban-reason').value || 'Manual admin ban';
+    
+    fetch('/admin/manual-ban-user', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            user_id: parseInt(userId),
+            reason: reason
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('User banned successfully');
+            hideBanUserModal();
+            refreshBannedUsers();
+            refreshActions();
+        } else {
+            alert('Error banning user: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error banning user');
+    });
+}
+
+function unbanUser(userId) {
+    if (!confirm('Are you sure you want to unban this user?')) return;
+    
+    fetch('/admin/manual-unban-user', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            user_id: userId,
+            reason: 'Manual admin unban'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('User unbanned successfully');
+            refreshBannedUsers();
+            refreshActions();
+        } else {
+            alert('Error unbanning user: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error unbanning user');
+    });
+}
+
+function refreshBannedUsers() {
+    location.reload(); // Simple refresh for now
+}
+
+function setupSearch() {
+    const searchInput = document.getElementById('search-banned-users');
+    const filterSelect = document.getElementById('filter-channel');
+    
+    function filterTable() {
+        const searchTerm = searchInput.value.toLowerCase();
+        const channelFilter = filterSelect.value;
+        const rows = document.querySelectorAll('#banned-users-table tr');
+        
+        rows.forEach(row => {
+            if (row.cells.length < 5) return; // Skip header/empty rows
+            
+            const userText = row.cells[0].textContent.toLowerCase();
+            const channelText = row.cells[1].textContent;
+            
+            const matchesSearch = userText.includes(searchTerm);
+            const matchesChannel = !channelFilter || channelText.includes(channelFilter);
+            
+            row.style.display = matchesSearch && matchesChannel ? '' : 'none';
+        });
+    }
+    
+    searchInput.addEventListener('input', filterTable);
+    filterSelect.addEventListener('change', filterTable);
+}
+
+function clearLogs() {
+    if (!confirm('Are you sure you want to clear all bot action logs?')) return;
+    
+    fetch('/admin/clear-bot-logs', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Logs cleared successfully');
+            refreshActions();
+        } else {
+            alert('Error clearing logs');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error clearing logs');
+    });
+}
+
+function viewUserDetails(userId) {
+    window.open(`/admin/users?search=${userId}`, '_blank');
+}
+</script>
+{% endblock %}

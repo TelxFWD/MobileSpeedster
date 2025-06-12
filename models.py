@@ -179,7 +179,7 @@ class BotLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     action_type = db.Column(db.String(32), nullable=False)  # 'ban', 'unban', 'manual_ban', 'manual_unban'
     user_id = db.Column(db.Integer)
-    channel_id = db.Column(db.String(128))
+    channel_id = db.Column(db.Integer, db.ForeignKey('channel.id'))
     reason = db.Column(db.String(256))
     success = db.Column(db.Boolean, default=True)
     error_message = db.Column(db.Text)
@@ -187,5 +187,52 @@ class BotLog(db.Model):
     admin_user = db.Column(db.String(64))  # Admin who performed manual action
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     
+    # Relationships
+    channel = db.relationship('Channel', backref='bot_logs')
+    
     def __repr__(self):
         return f'<BotLog {self.action_type} user:{self.user_id} channel:{self.channel_id}>'
+
+class BotAction(db.Model):
+    """Track enforcement bot actions for performance monitoring"""
+    id = db.Column(db.Integer, primary_key=True)
+    action_type = db.Column(db.String(32), nullable=False)  # 'ban', 'unban', 'kick', 'restrict'
+    user_id = db.Column(db.Integer, nullable=False)
+    channel_id = db.Column(db.Integer, db.ForeignKey('channel.id'), nullable=False)
+    telegram_user_id = db.Column(db.BigInteger)  # Telegram user ID
+    telegram_channel_id = db.Column(db.String(64))  # Telegram channel ID
+    reason = db.Column(db.String(256))
+    success = db.Column(db.Boolean, default=True)
+    error_message = db.Column(db.Text)
+    execution_time_ms = db.Column(db.Integer)  # Time taken to execute action
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    channel = db.relationship('Channel', backref='bot_actions')
+    
+    @staticmethod
+    def get_daily_stats(date=None):
+        """Get daily bot action statistics"""
+        if date is None:
+            date = datetime.utcnow().date()
+        
+        start_date = datetime.combine(date, datetime.min.time())
+        end_date = start_date + timedelta(days=1)
+        
+        actions = BotAction.query.filter(
+            BotAction.created_at >= start_date,
+            BotAction.created_at < end_date
+        ).all()
+        
+        stats = {
+            'total_actions': len(actions),
+            'bans': len([a for a in actions if a.action_type == 'ban']),
+            'unbans': len([a for a in actions if a.action_type == 'unban']),
+            'successful': len([a for a in actions if a.success]),
+            'failed': len([a for a in actions if not a.success]),
+            'avg_execution_time': sum(a.execution_time_ms or 0 for a in actions) / len(actions) if actions else 0
+        }
+        return stats
+    
+    def __repr__(self):
+        return f'<BotAction {self.action_type} user:{self.user_id} channel:{self.channel_id}>'
