@@ -82,12 +82,12 @@ def start_background_services():
     bot_thread.start()
 
     def run_enforcement_bot_background():
-        """Start enforcement bot service in background"""
+        """Start enhanced enforcement bot service in background"""
         try:
-            from enforcement_bot import run_enforcement_bot_background as start_enforcement_service
-            start_enforcement_service()
+            from enforcement_bot_v2 import run_enforcement_bot_v2_background
+            run_enforcement_bot_v2_background()
         except Exception as e:
-            logger.error(f"Failed to start enforcement bot service: {e}")
+            logger.error(f"Failed to start enforcement bot V2 service: {e}")
 
     # Check enforcement bot configuration
     api_id = os.environ.get('TELEGRAM_API_ID')
@@ -97,7 +97,8 @@ def start_background_services():
     if not api_id or not api_hash or not bot_token:
         logger.info("Enforcement bot in standby mode - configure Telegram API credentials at /admin/bot-setup to activate")
     else:
-        logger.info("Enforcement bot configured but disabled during migration - will be enabled after setup verification")
+        logger.info("Starting enhanced enforcement bot V2 with bot authentication")
+        run_enforcement_bot_background()
 
 # Start background services
 start_background_services()
