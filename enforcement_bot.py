@@ -30,13 +30,9 @@ class EnforcementBot:
     """Advanced Telegram enforcement bot with safety features"""
     
     def __init__(self):
-        self.api_id = os.environ.get('TELEGRAM_API_ID')
-        self.api_hash = os.environ.get('TELEGRAM_API_HASH')
-        self.bot_token = os.environ.get('TELEGRAM_BOT_TOKEN')
-        self.phone = os.environ.get('TELEGRAM_PHONE')
-        
-        # Use persistent session name from environment or default
-        self.session_name = os.environ.get('TELETHON_SESSION', 'enforcement.session')
+        # Load credentials from database or fall back to environment
+        self.db_settings = None
+        self.load_credentials_from_db()
         
         # Ensure session directory exists
         self.session_dir = os.path.join(os.getcwd(), 'sessions')
@@ -45,6 +41,32 @@ class EnforcementBot:
         
         # Full path to session file (without .session extension, Telethon adds it)
         self.session_path = os.path.join(self.session_dir, 'enforcement')
+    
+    def load_credentials_from_db(self):
+        """Load credentials from database settings"""
+        try:
+            from app import app, db
+            from models import BotSettings
+            
+            with app.app_context():
+                settings = BotSettings.get_settings()
+                self.db_settings = settings
+                
+                # Use database credentials if available, otherwise fall back to environment
+                self.api_id = settings.api_id or os.environ.get('TELEGRAM_API_ID')
+                self.api_hash = settings.api_hash or os.environ.get('TELEGRAM_API_HASH')
+                self.bot_token = settings.bot_token or os.environ.get('TELEGRAM_BOT_TOKEN')
+                self.phone = settings.phone_number or os.environ.get('TELEGRAM_PHONE')
+                
+                logger.info(f"Loaded credentials from database: API ID: {bool(self.api_id)}, API Hash: {bool(self.api_hash)}, Bot Token: {bool(self.bot_token)}")
+                
+        except Exception as e:
+            logger.warning(f"Failed to load credentials from database: {e}")
+            # Fall back to environment variables
+            self.api_id = os.environ.get('TELEGRAM_API_ID')
+            self.api_hash = os.environ.get('TELEGRAM_API_HASH')
+            self.bot_token = os.environ.get('TELEGRAM_BOT_TOKEN')
+            self.phone = os.environ.get('TELEGRAM_PHONE')
         
         # Safety configuration
         self.dry_run = os.environ.get('BOT_MODE', 'live') == 'dry-run'
@@ -877,31 +899,63 @@ class EnforcementBot:
         """Manually ban user from all channels"""
         results = []
         
-        # Get current managed channels
-        channels = await self.get_managed_channels()
+        if not self.client:
+            logger.error("Telegram client not initialized for manual ban")
+            return {
+                'user_id': user_id,
+                'error': 'Telegram client not available',
+                'successful_bans': 0,
+                'results': []
+            }
         
-        for channel_info in channels:
-            channel_id = channel_info['telegram_channel_id']
+        # Get current managed channels
+        try:
+            await self.sync_channels()
+            if not self.managed_channels:
+                return {
+                    'user_id': user_id,
+                    'error': 'No channels configured',
+                    'successful_bans': 0,
+                    'results': []
+                }
+        except Exception as e:
+            logger.error(f"Failed to sync channels for manual ban: {e}")
+            return {
+                'user_id': user_id,
+                'error': f'Failed to load channels: {str(e)}',
+                'successful_bans': 0,
+                'results': []
+            }
+        
+        for channel_id, channel_info in self.managed_channels.items():
             try:
                 channel_entity = await self.client.get_entity(channel_id)
                 success = await self.safe_ban_user(channel_entity, user_id, reason)
                 results.append({
-                    'channel': getattr(channel_entity, 'title', 'Unknown'),
+                    'channel': getattr(channel_entity, 'title', channel_info.get('name', 'Unknown')),
                     'channel_id': channel_id,
                     'success': success
                 })
+                
+                # Log the manual action
+                await self.log_action('manual_ban', user_id, channel_info.get('id', 0), reason)
+                
             except Exception as e:
+                logger.error(f"Failed to ban user {user_id} from channel {channel_id}: {e}")
                 results.append({
-                    'channel': channel_id,
+                    'channel': channel_info.get('name', channel_id),
                     'channel_id': channel_id,
                     'success': False,
                     'error': str(e)
                 })
         
+        successful_bans = sum(1 for r in results if r['success'])
+        logger.info(f"Manual ban user {user_id}: {successful_bans}/{len(results)} channels")
+        
         return {
             'user_id': user_id,
-            'total_channels': len(channels),
-            'successful_bans': sum(1 for r in results if r['success']),
+            'total_channels': len(results),
+            'successful_bans': successful_bans,
             'results': results
         }
     
@@ -909,31 +963,63 @@ class EnforcementBot:
         """Manually unban user from all channels"""
         results = []
         
-        # Get current managed channels
-        channels = await self.get_managed_channels()
+        if not self.client:
+            logger.error("Telegram client not initialized for manual unban")
+            return {
+                'user_id': user_id,
+                'error': 'Telegram client not available',
+                'successful_unbans': 0,
+                'results': []
+            }
         
-        for channel_info in channels:
-            channel_id = channel_info['telegram_channel_id']
+        # Get current managed channels
+        try:
+            await self.sync_channels()
+            if not self.managed_channels:
+                return {
+                    'user_id': user_id,
+                    'error': 'No channels configured',
+                    'successful_unbans': 0,
+                    'results': []
+                }
+        except Exception as e:
+            logger.error(f"Failed to sync channels for manual unban: {e}")
+            return {
+                'user_id': user_id,
+                'error': f'Failed to load channels: {str(e)}',
+                'successful_unbans': 0,
+                'results': []
+            }
+        
+        for channel_id, channel_info in self.managed_channels.items():
             try:
                 channel_entity = await self.client.get_entity(channel_id)
                 success = await self.safe_unban_user(channel_entity, user_id, reason)
                 results.append({
-                    'channel': getattr(channel_entity, 'title', 'Unknown'),
+                    'channel': getattr(channel_entity, 'title', channel_info.get('name', 'Unknown')),
                     'channel_id': channel_id,
                     'success': success
                 })
+                
+                # Log the manual action
+                await self.log_action('manual_unban', user_id, channel_info.get('id', 0), reason)
+                
             except Exception as e:
+                logger.error(f"Failed to unban user {user_id} from channel {channel_id}: {e}")
                 results.append({
-                    'channel': channel_id,
+                    'channel': channel_info.get('name', channel_id),
                     'channel_id': channel_id,
                     'success': False,
                     'error': str(e)
                 })
         
+        successful_unbans = sum(1 for r in results if r['success'])
+        logger.info(f"Manual unban user {user_id}: {successful_unbans}/{len(results)} channels")
+        
         return {
             'user_id': user_id,
-            'total_channels': len(channels),
-            'successful_unbans': sum(1 for r in results if r['success']),
+            'total_channels': len(results),
+            'successful_unbans': successful_unbans,
             'results': results
         }
 

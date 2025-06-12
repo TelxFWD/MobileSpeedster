@@ -148,9 +148,24 @@ class SiteContent(db.Model):
 class BotSettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     bot_token = db.Column(db.String(256))
+    api_id = db.Column(db.String(128))
+    api_hash = db.Column(db.String(256))
+    phone_number = db.Column(db.String(32))
+    session_string = db.Column(db.Text)  # Store session data for persistence
+    enforcement_enabled = db.Column(db.Boolean, default=False)
     notifications_enabled = db.Column(db.Boolean, default=True)
     welcome_message = db.Column(db.Text)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    @staticmethod
+    def get_settings():
+        """Get or create bot settings"""
+        settings = BotSettings.query.first()
+        if not settings:
+            settings = BotSettings()
+            db.session.add(settings)
+            db.session.commit()
+        return settings
 
 class PaymentSettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
