@@ -603,14 +603,10 @@ class EnforcementBot:
                         continue
                     except ValueError as ve:
                         if "Cannot find any entity" in str(ve):
-                            logger.debug(f"Channel {channel_id} entity not found, trying alternative format")
-                            # Try converting numeric ID to proper format if needed
-                            if channel_id.startswith('-') and channel_id[1:].isdigit():
-                                logger.debug(f"Channel ID {channel_id} is valid numeric format")
-                            else:
-                                logger.error(f"Channel validation error for {channel_id}: {ve}")
-                                total_errors += 1
-                                continue
+                            logger.warning(f"Channel {channel_id} entity not found. Bot may not be added to channel or channel may be private")
+                            logger.info(f"Skipping channel {channel_name} - ensure bot is added as admin")
+                            total_errors += 1
+                            continue
                         else:
                             logger.error(f"Channel validation error for {channel_id}: {ve}")
                             total_errors += 1
