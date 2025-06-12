@@ -1115,7 +1115,12 @@ def admin_bot_setup():
                         bot_settings = BotSettings()
                         db.session.add(bot_settings)
                     
+                    # Save all credentials to database
+                    bot_settings.api_id = temp_config['api_id']
+                    bot_settings.api_hash = temp_config['api_hash']
                     bot_settings.bot_token = temp_config['bot_token']
+                    bot_settings.phone_number = temp_config['phone']
+                    bot_settings.enforcement_enabled = True
                     db.session.commit()
                     
                     # Clear session data
